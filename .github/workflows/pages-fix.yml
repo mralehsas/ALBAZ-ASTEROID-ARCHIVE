@@ -1,0 +1,34 @@
+name: Repair GitHub Pages assets
+
+on:
+  push:
+    paths:
+      - 'pages_fix_bundle.zip'
+      - '.github/workflows/pages-fix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Extract missing site assets
+        run: |
+          unzip -o pages_fix_bundle.zip -d .
+          rm -f pages_fix_bundle.zip
+      - name: Commit repaired Pages files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add css js assets data .nojekyll || true
+          git rm -f --ignore-unmatch pages_fix_bundle.zip || true
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Repair GitHub Pages static assets"
+            git push
+          fi
