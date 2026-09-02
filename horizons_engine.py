@@ -19,9 +19,9 @@ from pathlib import Path
 from typing import Any, Final
 
 from jpl_client import ensure_signature, network_error_label, request_json, signature_info
+from runtime_paths import HORIZONS_CACHE_DIR
 
-ROOT: Final[Path] = Path(__file__).resolve().parent
-CACHE_DIR: Final[Path] = ROOT / "data" / "horizons_cache"
+CACHE_DIR: Final[Path] = HORIZONS_CACHE_DIR
 VERSION: Final[str] = "0.7.2"
 HORIZONS_URL: Final[str] = "https://ssd.jpl.nasa.gov/api/horizons.api"
 LOOKUP_URL: Final[str] = "https://ssd.jpl.nasa.gov/api/horizons_lookup.api"
