@@ -39,8 +39,10 @@ jobs:
                   if (
                       'id="analyzerDiameter" type="number" min="0.01" step="0.01" value="20"' in last
                       and 'if (backendApiAvailable()) await loadHorizonsTrack();' in last
+                      and "endpoint('object', { sstr: value, refresh: '1' })" in last
+                      and "consoleOnly ? t('refreshLiveNasa') : t('startNasaUpdate')" in last
                   ):
-                      print('GitHub Pages contains the repaired calculation paths.')
+                      print('GitHub Pages contains the repaired calculation, search and live-refresh paths.')
                       raise SystemExit(0)
               except Exception as exc:
                   print('Pages probe:', type(exc).__name__, str(exc)[:300])
@@ -51,7 +53,7 @@ jobs:
           node-version: '22'
       - name: Install browser driver library
         run: npm install --no-save puppeteer-core@24
-      - name: Exercise production calculator and live orbit
+      - name: Exercise production search, refresh, calculator and orbit
         shell: bash
         run: |
           CHROME="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || true)"
@@ -72,6 +74,8 @@ jobs:
             page.setDefaultTimeout(180000);
             const consoleErrors = [];
             const horizonRequests = [];
+            const apiRequests = [];
+            const apiResponses = [];
 
             page.on('console', msg => {
               if (msg.type() === 'error') consoleErrors.push(msg.text());
@@ -79,13 +83,17 @@ jobs:
             });
             page.on('pageerror', err => consoleErrors.push('PAGEERROR ' + err.message));
             page.on('request', req => {
-              if (req.url().includes('/api/horizons/track')) {
-                horizonRequests.push(req.url());
-                console.log('HORIZONS_REQUEST', req.url());
+              const url = req.url();
+              if (url.includes('omaralbaz9.pythonanywhere.com/api/')) apiRequests.push(url);
+              if (url.includes('/api/horizons/track')) {
+                horizonRequests.push(url);
+                console.log('HORIZONS_REQUEST', url);
               }
             });
             page.on('response', res => {
-              if (res.url().includes('/api/horizons/track')) console.log('HORIZONS_RESPONSE', res.status(), res.url());
+              const url = res.url();
+              if (url.includes('omaralbaz9.pythonanywhere.com/api/')) apiResponses.push([res.status(), url]);
+              if (url.includes('/api/horizons/track')) console.log('HORIZONS_RESPONSE', res.status(), url);
             });
 
             await page.goto('https://mralehsas.github.io/ALBAZ-ASTEROID-ARCHIVE/?smoke=' + Date.now(), {
@@ -93,6 +101,48 @@ jobs:
             });
             await page.waitForFunction(() => document.querySelector('#connectionText')?.textContent.includes('Backend Online'), {timeout:30000});
             await page.waitForFunction(() => document.querySelector('#loadingOverlay')?.hidden === true, {timeout:120000});
+
+            // Search must use the archive-aware object endpoint and persist the profile.
+            const beforeHealth = await page.evaluate(async () => {
+              const r = await fetch('https://omaralbaz9.pythonanywhere.com/api/health', {cache:'no-store'});
+              return await r.json();
+            });
+            apiRequests.length = 0;
+            apiResponses.length = 0;
+            await page.$eval('#globalSearch', el => { el.value='101955'; el.dispatchEvent(new Event('input',{bubbles:true})); });
+            await page.focus('#globalSearch');
+            await page.keyboard.press('Enter');
+            await page.waitForFunction(() => /Bennu|101955/i.test(document.querySelector('#dialogTitle')?.textContent || ''), {timeout:60000});
+            await sleep(300);
+            const objectRequest = apiRequests.find(u => u.includes('/api/object?') && u.includes('refresh=1'));
+            console.log('SEARCH_OBJECT_REQUEST', objectRequest || 'NONE');
+            assert.ok(objectRequest, 'Public search did not use archive-aware /api/object?refresh=1');
+            assert.ok(apiResponses.some(([status,u]) => status === 200 && u.includes('/api/object?')), 'Archive-aware search did not return HTTP 200');
+            const afterHealth = await page.evaluate(async () => {
+              const r = await fetch('https://omaralbaz9.pythonanywhere.com/api/health', {cache:'no-store'});
+              return await r.json();
+            });
+            assert.ok(Number(afterHealth.counts?.objects || 0) >= Number(beforeHealth.counts?.objects || 0), 'Stored object count decreased after search');
+            console.log('SEARCH_COUNTS', JSON.stringify({before:beforeHealth.counts?.objects, after:afterHealth.counts?.objects}));
+            await page.evaluate(() => { const d=document.querySelector('#objectDialog'); if (d?.open) d.close(); });
+            await page.$eval('#globalSearch', el => { el.value=''; el.dispatchEvent(new Event('input',{bubbles:true})); });
+
+            // Cloud update button must perform an actual live data refresh.
+            await page.waitForFunction(() => !document.querySelector('#startNasaUpdateButton')?.disabled, {timeout:10000});
+            const refreshLabel = await page.$eval('#startNasaUpdateButton b', el => el.textContent.trim());
+            console.log('LIVE_REFRESH_LABEL', refreshLabel);
+            apiRequests.length = 0;
+            apiResponses.length = 0;
+            await page.click('#startNasaUpdateButton');
+            await page.waitForFunction(() => document.querySelector('#loadingOverlay')?.hidden === true, {timeout:120000});
+            await sleep(500);
+            console.log('LIVE_REFRESH_REQUESTS', JSON.stringify(apiRequests));
+            assert.ok(apiRequests.some(u => u.includes('/api/cad?')), 'Live refresh did not request CAD');
+            assert.ok(apiRequests.some(u => u.includes('/api/fireball')), 'Live refresh did not request Fireball');
+            assert.ok(apiRequests.some(u => u.includes('/api/sentry')), 'Live refresh did not request Sentry');
+            assert.ok(apiResponses.some(([status,u]) => status === 200 && u.includes('/api/cad?')), 'CAD refresh did not return HTTP 200');
+            assert.ok(apiResponses.some(([status,u]) => status === 200 && u.includes('/api/fireball')), 'Fireball refresh did not return HTTP 200');
+            assert.ok(apiResponses.some(([status,u]) => status === 200 && u.includes('/api/sentry')), 'Sentry refresh did not return HTTP 200');
 
             await page.click('[data-view-target="analyzer"]');
             const validity = await page.$eval('#analyzerForm', form => ({
