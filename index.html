@@ -1752,7 +1752,7 @@ window.AA_LIVE_CACHE = window.AA_LIVE_CACHE || null;
     nasaDescription: 'تنزيل السجلات الرسمية وحفظها محليًا في SQLite مع سجل تدقيق كامل، من دون استبدال القيم المفقودة بتقديرات غير معلّمة.',
     engineIdle: 'المحرك جاهز', updateConfig: 'إعداد التحديث', archiveWindow: 'نافذة الأرشفة', futureDays: 'مدة الاقترابات القادمة — يوم',
     engineDistance: 'أقصى مسافة — LD', approachLimit: 'حد سجلات الاقتراب', fireballLimit: 'حد سجلات الكرات النارية',
-    profileLimit: 'الملفات العلمية ذات الأولوية', includeProfiles: 'تحديث ملفات SBDB العلمية للأجرام الأقرب', startNasaUpdate: 'بدء تحديث NASA/JPL',
+    profileLimit: 'الملفات العلمية ذات الأولوية', includeProfiles: 'تحديث ملفات SBDB العلمية للأجرام الأقرب', startNasaUpdate: 'بدء تحديث NASA/JPL', refreshLiveNasa: 'تحديث البيانات الحية NASA/JPL', refreshLiveNasa: 'تحديث البيانات الحية NASA/JPL', refreshLiveNasa: 'تحديث البيانات الحية NASA/JPL', refreshLiveNasa: 'تحديث البيانات الحية NASA/JPL',
     cancelUpdate: 'إلغاء التحديث', updatePolicy: 'لا تُحذف آخر قاعدة سليمة عند فشل الإنترنت. تُستبدل المجموعة فقط بعد اكتمال تنزيلها والتحقق من JSON.',
     liveProgress: 'التقدم المباشر', waitingUpdate: 'بانتظار بدء التحديث', engineReadyMessage: 'قاعدة البيانات المحلية جاهزة للاستعمال.',
     dbApproaches: 'اقترابات محفوظة', dbFireballs: 'كرات نارية محفوظة', dbSentry: 'أجسام Sentry', dbProfiles: 'ملفات علمية',
@@ -1769,7 +1769,7 @@ window.AA_LIVE_CACHE = window.AA_LIVE_CACHE || null;
     nasaDescription: 'Download official records into SQLite with a complete audit trail, without replacing missing values with unlabelled estimates.',
     engineIdle: 'Engine ready', updateConfig: 'Update configuration', archiveWindow: 'Archive window', futureDays: 'Future approach window — days',
     engineDistance: 'Maximum distance — LD', approachLimit: 'Approach record limit', fireballLimit: 'Fireball record limit',
-    profileLimit: 'Priority scientific profiles', includeProfiles: 'Update SBDB profiles for the nearest objects', startNasaUpdate: 'Start NASA/JPL update',
+    profileLimit: 'Priority scientific profiles', includeProfiles: 'Update SBDB profiles for the nearest objects', startNasaUpdate: 'Start NASA/JPL update', refreshLiveNasa: 'Refresh live NASA/JPL data', refreshLiveNasa: 'Refresh live NASA/JPL data', refreshLiveNasa: 'Refresh live NASA/JPL data', refreshLiveNasa: 'Refresh live NASA/JPL data',
     cancelUpdate: 'Cancel update', updatePolicy: 'The last valid database is retained if the network fails. A dataset is replaced only after valid JSON is downloaded.',
     liveProgress: 'Live progress', waitingUpdate: 'Waiting to start', engineReadyMessage: 'The local database is ready for use.',
     dbApproaches: 'Stored approaches', dbFireballs: 'Stored fireballs', dbSentry: 'Sentry objects', dbProfiles: 'Scientific profiles',
@@ -4127,7 +4127,7 @@ window.AA_LIVE_CACHE = window.AA_LIVE_CACHE || null;
     record.loading = true; record.error = '';
     renderCompare();
     try {
-      record.profile = await fetchJson(isLocalServer() ? endpoint('object', { sstr: query }) : endpoint('sbdb', { sstr: query, 'phys-par': 'true', 'full-prec': 'true' }));
+      record.profile = await fetchJson(backendApiAvailable() ? endpoint('object', { sstr: query, refresh: '1' }) : endpoint('sbdb', { sstr: query, 'phys-par': 'true', 'full-prec': 'true' }));
     } catch (error) {
       record.error = `${t('profileLoadFailed')}: ${error.message}`;
     } finally {
@@ -4154,7 +4154,7 @@ window.AA_LIVE_CACHE = window.AA_LIVE_CACHE || null;
     status.className = 'scientific-note loading'; status.textContent = t('loadingScientificProfile');
     $('#compareAddButton').disabled = true;
     try {
-      const profile = await fetchJson(isLocalServer() ? endpoint('object', { sstr: value }) : endpoint('sbdb', { sstr: value, 'phys-par': 'true', 'full-prec': 'true' }));
+      const profile = await fetchJson(backendApiAvailable() ? endpoint('object', { sstr: value, refresh: '1' }) : endpoint('sbdb', { sstr: value, 'phys-par': 'true', 'full-prec': 'true' }));
       const approach = findMatchingApproach(profile, value);
       const id = compareRecordKey(profile, approach, value);
       const duplicate = [...state.compareStore.values()].find(record => normalizedObjectToken(compareRecordDesignation(record)) === normalizedObjectToken(profile?.object?.des || value) || record.id === id);
@@ -4427,7 +4427,7 @@ window.AA_LIVE_CACHE = window.AA_LIVE_CACHE || null;
     if (!value) return;
     setLoading(true, `${t('loading')} — JPL SBDB`);
     try {
-      const payload = await fetchJson(isLocalServer() ? endpoint('object', { sstr: value }) : endpoint('sbdb', { sstr: value, 'phys-par': 'true', 'full-prec': 'true' }));
+      const payload = await fetchJson(backendApiAvailable() ? endpoint('object', { sstr: value, refresh: '1' }) : endpoint('sbdb', { sstr: value, 'phys-par': 'true', 'full-prec': 'true' }));
       state.selected = { type: 'sbdb', item: payload };
       const object = payload.object || {};
       $('#dialogTitle').textContent = object.fullname || object.shortname || object.des || value;
@@ -4666,7 +4666,12 @@ window.AA_LIVE_CACHE = window.AA_LIVE_CACHE || null;
     const stage = $('#engineStage'); if (stage) stage.textContent = String(snapshot.stage || 'IDLE').toUpperCase();
     const msg = $('#engineMessage'); if (msg) msg.textContent = consoleOnly ? t('engineConsoleOnly') : (snapshot.message || t('engineReadyMessage'));
     const title = $('#engineProgressTitle'); if (title) title.textContent = running ? (state.lang === 'ar' ? 'التحديث قيد التنفيذ' : 'Update in progress') : statusLabel(status);
-    const start = $('#startNasaUpdateButton'); if (start) start.disabled = running || consoleOnly || !isLocalServer();
+    const start = $('#startNasaUpdateButton');
+    if (start) {
+      start.disabled = running || !backendApiAvailable();
+      const startLabel = start.querySelector('b');
+      if (startLabel) startLabel.textContent = consoleOnly ? t('refreshLiveNasa') : t('startNasaUpdate');
+    }
     const cancel = $('#cancelNasaUpdateButton'); if (cancel) cancel.disabled = !running;
     const log = $('#engineLog');
     if (log) {
@@ -4739,6 +4744,12 @@ window.AA_LIVE_CACHE = window.AA_LIVE_CACHE || null;
   async function startNasaUpdate(event) {
     event?.preventDefault();
     if (!backendApiAvailable()) { toast(t('engineLocalOnly'), 'error'); return; }
+    const consoleOnly = state.engineState?.status === 'console_only';
+    if (consoleOnly && !isLocalServer()) {
+      await loadAllData();
+      renderEngineState(state.engineState || state.health?.update || { status:'console_only', running:false, percent:0, stage:'LIVE', logs:[] });
+      return;
+    }
     try {
       const payload = await postJson(endpoint('updateStart'), engineConfig());
       state.engineState = payload.state || { status:'running', running:true, percent:0, logs:[] };
