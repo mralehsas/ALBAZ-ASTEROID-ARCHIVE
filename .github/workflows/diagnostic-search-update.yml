@@ -94,6 +94,10 @@ jobs:
             console.log('HEALTH_AFTER_SEARCH', JSON.stringify(afterSearchHealth.counts));
             console.log('SEARCH_OBJECT_COUNT_DELTA', Number(afterSearchHealth.counts?.objects||0)-Number(beforeHealth.counts?.objects||0));
 
+            await page.evaluate(() => {
+              const dialog = document.querySelector('#objectDialog');
+              if (dialog?.open) dialog.close();
+            });
             await page.$eval('#globalSearch', el => { el.value=''; el.dispatchEvent(new Event('input',{bubbles:true})); });
             requests.length = 0;
             responses.length = 0;
