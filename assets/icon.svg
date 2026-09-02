@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Asteroid Archive">
+  <defs>
+    <radialGradient id="g" cx="35%" cy="30%" r="75%">
+      <stop offset="0" stop-color="#7af8ff"/>
+      <stop offset="0.35" stop-color="#1ca6be"/>
+      <stop offset="1" stop-color="#061522"/>
+    </radialGradient>
+    <linearGradient id="o" x1="0" x2="1">
+      <stop stop-color="#59efff"/>
+      <stop offset="1" stop-color="#e8b957"/>
+    </linearGradient>
+  </defs>
+  <rect width="96" height="96" rx="24" fill="#06111d"/>
+  <circle cx="48" cy="48" r="27" fill="url(#g)" stroke="#2fd6e8" stroke-width="2"/>
+  <ellipse cx="48" cy="48" rx="39" ry="13" fill="none" stroke="url(#o)" stroke-width="3" transform="rotate(-18 48 48)"/>
+  <circle cx="73" cy="35" r="5" fill="#efc766" stroke="#fff3c0" stroke-width="1.5"/>
+  <path d="M36 64l12-33 12 33h-7l-2.6-7.4H45.7L43 64zm11.3-13h6.3L50.5 42z" fill="#f7fbff"/>
+</svg>
