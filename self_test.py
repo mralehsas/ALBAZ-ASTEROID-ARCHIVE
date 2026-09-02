@@ -167,7 +167,8 @@ def test_versions_and_assets() -> None:
     assert_true(live_horizons["version_match"] is False and live_horizons["version_compatible"] is True, "Horizons 1.2 live response was not accepted")
 
     index = (ROOT / "index.html").read_text(encoding="utf-8")
-    app = (ROOT / "js" / "app.js").read_text(encoding="utf-8")
+    app_path = ROOT / "js" / "app.js"
+    app = app_path.read_text(encoding="utf-8") if app_path.exists() else index
     for element_id in (
         "nasaUpdateForm", "testNasaConnectionButton", "orbitForm", "orbitCanvas",
         "orbitForceRefresh", "orbitMetricNearest", "compareCards", "compareContent", "approachTableBody", "fireballTableBody",

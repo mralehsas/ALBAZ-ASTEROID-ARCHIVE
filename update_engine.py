@@ -25,9 +25,9 @@ from database import (
     remove_database_backup,
 )
 from jpl_client import ensure_signature, request_json, signature_info
+from runtime_paths import LIVE_CACHE_PATH
 
-ROOT: Final[Path] = Path(__file__).resolve().parent
-CACHE_PATH: Final[Path] = ROOT / "data" / "live-cache.js"
+CACHE_PATH: Final[Path] = LIVE_CACHE_PATH
 VERSION: Final[str] = "0.7.2"
 
 ProgressCallback = Callable[[dict[str, Any]], None]

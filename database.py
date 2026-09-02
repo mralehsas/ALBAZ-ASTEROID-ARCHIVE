@@ -15,8 +15,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any, Iterable
 
-ROOT = Path(__file__).resolve().parent
-DB_PATH = ROOT / "data" / "asteroid_archive.db"
+from runtime_paths import BUNDLE_DATA_DIR, DB_PATH
 VALID_DATASETS = {"approaches", "fireballs", "sentry", "objects", "meteorites", "impact_structures"}
 
 
@@ -681,7 +680,7 @@ def seed_if_empty(*, path: Path = DB_PATH) -> bool:
     changed = False
     current = counts(path=path)
 
-    bootstrap = ROOT / "data" / "bootstrap.json"
+    bootstrap = BUNDLE_DATA_DIR / "bootstrap.json"
     if bootstrap.exists() and not (current.get("approaches") or current.get("fireballs") or current.get("sentry")):
         try:
             payload = json.loads(bootstrap.read_text(encoding="utf-8"))
@@ -695,7 +694,7 @@ def seed_if_empty(*, path: Path = DB_PATH) -> bool:
             set_metadata("bootstrap_note", payload.get("note") or "bundled reference data", path=path)
             changed = True
 
-    earth_history = ROOT / "data" / "earth_history.json"
+    earth_history = BUNDLE_DATA_DIR / "earth_history.json"
     if earth_history.exists() and not (current.get("meteorites") and current.get("impact_structures")):
         try:
             payload = json.loads(earth_history.read_text(encoding="utf-8"))

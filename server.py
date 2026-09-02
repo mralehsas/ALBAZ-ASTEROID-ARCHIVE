@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import mimetypes
+import os
 import threading
 import time
 import urllib.error
@@ -64,6 +65,33 @@ LOCAL_DATASETS: Final[dict[str, str]] = {
 }
 CACHE_TTL_SECONDS: Final[int] = 300
 CACHE: dict[str, tuple[float, bytes, str]] = {}
+PAGES_ORIGIN: Final[str] = "https://mralehsas.github.io"
+
+
+def environment_default_host() -> str:
+    return str(os.environ.get("HOST") or "127.0.0.1").strip() or "127.0.0.1"
+
+
+def environment_default_port() -> int:
+    raw = str(os.environ.get("PORT") or "8872").strip()
+    try:
+        port = int(raw)
+    except ValueError:
+        return 8872
+    return port if 1 <= port <= 65535 else 8872
+
+
+def allowed_cors_origin(origin: str | None) -> str | None:
+    value = str(origin or "").strip()
+    if value == PAGES_ORIGIN:
+        return value
+    try:
+        parsed = urllib.parse.urlsplit(value)
+    except ValueError:
+        return None
+    if parsed.scheme in {"http", "https"} and parsed.hostname in {"127.0.0.1", "localhost"}:
+        return value
+    return None
 
 UPDATE_LOCK = threading.RLock()
 UPDATE_CANCEL = threading.Event()
@@ -136,7 +164,17 @@ class ArchiveHandler(SimpleHTTPRequestHandler):
         self.send_header("Pragma", "no-cache")
         self.send_header("Expires", "0")
         self.send_header("X-Asteroid-Archive-Version", VERSION)
+        origin = allowed_cors_origin(self.headers.get("Origin"))
+        if origin:
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Vary", "Origin")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type")
         super().end_headers()
+
+    def do_OPTIONS(self) -> None:  # noqa: N802
+        self.send_response(HTTPStatus.NO_CONTENT)
+        self.end_headers()
 
     def do_GET(self) -> None:  # noqa: N802
         parsed = urllib.parse.urlsplit(self.path)
@@ -373,6 +411,12 @@ class ArchiveHandler(SimpleHTTPRequestHandler):
                 "cache_entries": len(CACHE),
                 "update": update_snapshot(),
                 "recent_updates": recent_update_runs(limit=3),
+                "runtime": {
+                    "host_default": environment_default_host(),
+                    "port_default": environment_default_port(),
+                    "data_dir": str(DB_PATH.parent),
+                    "external_data_dir": bool(str(os.environ.get("ALBAZ_DATA_DIR") or "").strip()),
+                },
             }
         )
 
@@ -401,8 +445,8 @@ class ArchiveHandler(SimpleHTTPRequestHandler):
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run Asteroid Archive v0.7 Final Audited Edition with SQLite, serialized NASA/JPL access, Horizons and comparison.")
-    parser.add_argument("--host", default="127.0.0.1", help="Bind host (default: 127.0.0.1)")
-    parser.add_argument("--port", type=int, default=8872, help="Bind port (default: 8872; reserved for Asteroid Archive)")
+    parser.add_argument("--host", default=environment_default_host(), help="Bind host")
+    parser.add_argument("--port", type=int, default=environment_default_port(), help="Bind port")
     parser.add_argument("--no-open", action="store_true", help="Do not open the browser automatically")
     args = parser.parse_args()
 
@@ -412,7 +456,9 @@ def main() -> int:
     requested_port = int(args.port)
     server = None
     last_error = None
-    for candidate_port in range(requested_port, requested_port + 21):
+    render_managed_port = bool(str(os.environ.get("PORT") or "").strip())
+    port_candidates = [requested_port] if render_managed_port else range(requested_port, requested_port + 21)
+    for candidate_port in port_candidates:
         try:
             server = ThreadingHTTPServer((args.host, candidate_port), ArchiveHandler)
             args.port = candidate_port
