@@ -1,9 +1,0 @@
-services:
-  - type: web
-    name: albaz-asteroid-api
-    runtime: python
-    plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: python server.py --host 0.0.0.0 --port $PORT --no-open
-    healthCheckPath: /api/health
-    autoDeployTrigger: commit
