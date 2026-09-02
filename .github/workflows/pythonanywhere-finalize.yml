@@ -1,0 +1,54 @@
+name: Finalize PythonAnywhere backend
+
+on:
+  push:
+    branches:
+      - feature/pythonanywhere-backend
+    paths:
+      - .github/workflows/pythonanywhere-finalize.yml
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/pythonanywhere-backend
+          fetch-depth: 0
+
+      - name: Restore verified deployment test
+        run: |
+          base64 -d .github/pythonanywhere-deployment-test.gz.b64 | gzip -d > deployment_test.py
+          test "$(git hash-object deployment_test.py)" = "1e1a8928ad6369a160bf707d1fca6994fa859d80"
+
+      - name: Remove Render artifacts
+        run: |
+          rm -f render.yaml RENDER_DEPLOYMENT.md
+
+      - name: Compile runtime modules
+        run: |
+          python -m compileall -q api_core.py pythonanywhere_wsgi.py cache_maintenance.py runtime_paths.py database.py horizons_engine.py update_engine.py update_data.py jpl_client.py server.py self_test.py deployment_test.py
+
+      - name: Scientific regression
+        run: python self_test.py
+
+      - name: PythonAnywhere migration regression
+        run: python deployment_test.py
+
+      - name: External data-dir smoke test
+        run: |
+          TMP_DATA="$(mktemp -d)"
+          ALBAZ_DATA_DIR="$TMP_DATA" python -c "import json; from database import initialize,seed_if_empty,DB_PATH,counts; initialize(); seed_if_empty(); p={'db':str(DB_PATH),'exists':DB_PATH.exists(),'counts':counts()}; print(json.dumps(p)); assert p['exists']; assert str(DB_PATH).startswith('$TMP_DATA')"
+
+      - name: Commit verified branch and remove temporary payload/workflow
+        run: |
+          rm -f .github/pythonanywhere-deployment-test.gz.b64
+          rm -f .github/workflows/pythonanywhere-finalize.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: finalize PythonAnywhere backend migration"
+          git push origin HEAD:feature/pythonanywhere-backend
