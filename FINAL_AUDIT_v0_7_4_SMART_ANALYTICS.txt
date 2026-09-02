@@ -1,0 +1,45 @@
+ALBAZ ASTEROID ARCHIVE v0.7.4 — SMART ANALYTICS
+FINAL INTERNAL AUDIT
+
+Scope
+- Added read-only Smart Analytics presentation layer.
+- Scientific Core remains v0.7.2.
+- No scientific engine, JPL/Horizons client, database engine, update engine, Earth-history dataset, or Blue Marble asset was changed.
+
+Checks
+- JavaScript syntax: PASS
+- Python compile: PASS
+- Internal self_test.py: 5/5 PASS
+  * vector parser
+  * Horizons pipeline
+  * lookup ambiguity
+  * database backup/restore
+  * versions/assets
+- SQLite main database integrity_check: ok
+- SQLite main database quick_check: ok
+- HTML duplicate IDs: 0
+- Static JavaScript element references missing: 0
+- Navigation targets without views: 0
+- HTML i18n keys missing from translations: 0
+- Local HTML assets missing: 0
+
+Core integrity
+The following files were SHA-256 compared before/after and are byte-for-byte unchanged:
+- database.py
+- server.py
+- jpl_client.py
+- horizons_engine.py
+- update_data.py
+- update_engine.py
+- data/asteroid_archive.db
+- data/earth_history.json
+- assets/blue_marble_1280.png
+
+Changed application files relative to v0.7.3
+- index.html
+- css/app.css
+- js/app.js
+- added Smart Analytics notes/audit text files
+
+Scientific policy
+All Smart Analytics indicators are display derivations only: counts, sorting, grouping, and field-availability checks over records already present in the application. The analytics layer does not generate a new risk score, does not recalculate orbital data, does not recalculate close approaches, and does not replace missing scientific values.

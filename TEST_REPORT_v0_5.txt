@@ -1,0 +1,23 @@
+Asteroid Archive v0.5 — Build Verification
+===========================================
+
+Completed checks:
+- Python syntax compilation for all .py modules.
+- JavaScript syntax check with Node.js.
+- HTML duplicate-ID scan: no duplicate IDs.
+- JavaScript selector-to-HTML ID scan: no missing static IDs.
+- SQLite initialization and schema version check.
+- Local HTTP server /api/health test.
+- Local update-status endpoint test.
+- NASA/JPL diagnostic endpoint test under blocked DNS conditions.
+- Diagnostic correctly categorized unavailable services as DNS failures.
+- Horizons CSV vector parser tested with controlled vector fixtures.
+- Horizons target normalization tested for asteroid number, provisional designation,
+  name and periodic-comet designation.
+- Automatic port fallback logic tested separately.
+- ZIP integrity verified after packaging.
+
+Environment limitation:
+External DNS is blocked in the build container, so a live JPL Horizons trajectory
+and a live NASA/JPL update could not be completed here. The connection diagnostic
+was specifically added so the user's Windows machine shows the exact live status.

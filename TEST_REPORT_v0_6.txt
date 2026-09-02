@@ -1,0 +1,25 @@
+Asteroid Archive v0.6 — Build Verification
+================================================
+
+[PASS] Python syntax
+       5 modules compiled
+[PASS] JavaScript syntax
+       app.js parsed by Node
+[PASS] HTML/JS wiring
+       169 unique ids; 139 direct selectors resolved
+[PASS] Comparison components
+       8 required components present
+[PASS] NASA limit input fix
+       Any integer step accepted
+[PASS] SQLite integrity
+       {"approaches": 3, "fireballs": 5, "meteorites": 11, "impacts": 12}
+[PASS] Local server health
+       version=0.6.0; database_ready=True
+
+Summary: 7/7 checks passed.
+[PASS] Headless UI comparison workflow
+       Three objects rendered; 30 comparison-matrix rows; 7 insight cards; no page errors.
+[PASS] Density scenario interaction
+       Custom-density field remained hidden until selected, then recalculated comparison values.
+
+Final UI summary: comparison workflow validated with mocked SBDB responses and bundled close-approach data.

@@ -1,0 +1,34 @@
+Asteroid Archive v0.4 — Earth History Engine
+==============================================
+
+EARTH HISTORY DATA
+- Added curated meteorite and confirmed-impact-structure datasets.
+- Added source URL, source name, quality state and bilingual notes per record.
+- Added dedicated SQLite tables and indexes for both datasets.
+- Added independent first-run seeding from data/earth_history.json.
+
+INTERFACE
+- Added Meteorite Register command view with map, filters and scientific table.
+- Added Confirmed Impact Structures view with map and minimum-diameter filter.
+- Added meteorite and impact markers to the main command-center map.
+- Added scientific inspector support for both new record types.
+- Added global search support for meteorites and impact structures.
+- Expanded the Earth Memory timeline with database-driven records.
+- Added counters for meteorites and impact structures to dashboard and engine view.
+
+EXPORTS
+- Added CSV and HTML report export for both new datasets.
+- Added PNG map export for meteorites and impact structures.
+- Updated report provenance to include Meteoritical Bulletin and Impact Earth.
+
+ENGINE AND DATABASE
+- Added /api/local/meteorites and /api/local/impact-structures endpoints.
+- Advanced SQLite user_version to 4.
+- Added health-count reporting for the new tables.
+- Preserved all v0.3 NASA/JPL update-engine functions.
+
+QUALITY
+- Corrected null/empty coordinate handling so absent coordinates are not interpreted as 0°.
+- Corrected finite-number checks so null values remain unavailable.
+- Verified Python compilation, JavaScript syntax, JSON validity, SQLite counts,
+  local HTTP endpoints and ZIP integrity.

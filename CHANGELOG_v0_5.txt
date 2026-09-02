@@ -1,0 +1,16 @@
+Asteroid Archive v0.5 — Horizons Command Center
+================================================
+
+- Added a NASA/JPL connection diagnostic panel.
+- Added explicit CAD, Fireball, SBDB, Sentry and Horizons status cards.
+- Added DNS, SSL, timeout, HTTP and network error categorization.
+- Added /api/connectivity/test local endpoint.
+- Added JPL Horizons vector bridge at /api/horizons/track.
+- Added heliocentric Earth–asteroid orbital simulation canvas.
+- Added live Horizons and labelled local-reference source modes.
+- Added Apophis Keplerian reference track for offline operation.
+- Added trajectory playback, time slider and nearest-distance metrics.
+- Added persistent Horizons response cache.
+- Added robust PowerShell launchers and standalone connection-test scripts.
+- Added automatic local-port fallback when port 8765 is busy.
+- Preserved all v0.4 Earth History Engine functionality.

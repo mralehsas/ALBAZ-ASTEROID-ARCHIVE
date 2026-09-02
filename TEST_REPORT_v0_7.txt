@@ -1,0 +1,115 @@
+Asteroid Archive v0.7 — Final Audited Edition
+Final Verification Report
+Date: 2026-07-03
+============================================================
+
+OVERALL RESULT
+--------------
+PASS — the packaged local application, database, deterministic Horizons
+pipeline, interface references and local HTTP bridge passed the audits listed
+below.
+
+1. JPL HORIZONS PATH AUDIT
+--------------------------
+PASS
+- Official Horizons Lookup is used before a vector request.
+- Accepts number, name, primary designation, SPK-ID and aliases.
+- Ambiguous/no-match results are rejected explicitly.
+- Target command is built from the resolved primary designation.
+- Vector requests use a Sun-centred frame, ecliptic reference plane,
+  ICRF/J2000 orientation, AU-D units and TDB time.
+- CSV vector tables are parsed using csv.reader, with a defensive labelled
+  parser as fallback.
+- Textual Horizons errors inside an HTTP 200 response are detected.
+- Asteroid and Earth rows are aligned by Julian date; arrays are not merely
+  truncated to the same length.
+- Earth distance is calculated at every aligned sampled epoch.
+- The interface labels the nearest value as the minimum among sampled epochs,
+  not as an exact close-approach instant.
+- Successful paths are cached atomically for seven days.
+- Offline cache lookup supports the requested label, official name, bare name,
+  IAU number, primary designation, SPK-ID and aliases.
+- A force-refresh checkbox can bypass a valid cached path.
+
+2. DETERMINISTIC OFFLINE SELF-TESTS
+-----------------------------------
+PASS — 5/5
+- test_vector_parser
+- test_horizons_pipeline
+- test_lookup_ambiguity
+- test_database_backup_restore
+- test_versions_and_assets
+
+These tests exercise official-format controlled JSON/vector responses,
+resolution of 99942 Apophis / 2004 MN4, ambiguity handling, epoch alignment,
+distance calculation, atomic cache writing, cache reuse with the network
+intentionally disabled, database rollback and key interface elements.
+
+3. NASA/JPL API CLIENT AUDIT
+----------------------------
+PASS
+- One process-wide lock serializes official JPL requests.
+- Temporary HTTP/network failures use controlled retries.
+- Expected API signatures are validated:
+  CAD 1.5
+  Fireball 1.2
+  SBDB 1.3
+  Sentry 2.0
+  Horizons 1.3
+  Horizons Lookup 1.1
+- Browser startup loads CAD, Fireball and Sentry sequentially.
+- The local proxy uses the same serialized client and signature checks.
+
+4. DATABASE RELIABILITY
+-----------------------
+PASS
+- SQLite PRAGMA integrity_check: ok
+- SQLite PRAGMA user_version: 7
+- Full pre-update database backup is created.
+- Database is restored automatically after update failure or cancellation.
+- Live-cache and Horizons-cache files use atomic replacement.
+
+5. PYTHON / JAVASCRIPT / INTERFACE AUDIT
+----------------------------------------
+PASS
+- Python compileall: passed.
+- JavaScript syntax check with Node.js: passed.
+- Duplicate HTML IDs: none.
+- Missing local assets referenced by index.html: none.
+- Missing JavaScript-targeted HTML IDs: none.
+- Required Horizons controls and diagnostic cards: present.
+
+6. LOCAL SERVER AUDIT
+---------------------
+PASS
+- GET /api/health: HTTP 200
+- Reported application version: 0.7.0
+- Database ready: true
+- GET /: HTTP 200
+- GET /api/local/approaches?limit=2: HTTP 200
+- Content-Security-Policy header: present
+
+7. EXTERNAL LIVE-CONNECTION LIMITATION
+--------------------------------------
+The build environment blocks external DNS/network access to JPL, so an actual
+live download from NASA/JPL could not be executed here. This report therefore
+does not claim a successful external live call from the build environment.
+
+Mitigation and user-side verification:
+- Request parameters and parser behavior were audited against the current
+  official API contracts.
+- The deterministic end-to-end Horizons pipeline passed.
+- اختبار_اتصال_NASA.bat / TEST_NASA_CONNECTION.bat performs the real test on
+  the user's connected Windows machine.
+- The Horizons diagnostic now requests and parses a genuine small Earth-vector
+  table rather than checking only the service metadata.
+
+8. BROWSER-AUTOMATION LIMITATION
+--------------------------------
+Automated Chromium navigation to localhost/file URLs was blocked by the host
+administrator policy. Local HTTP endpoints, static interface integrity,
+JavaScript syntax and all deterministic application tests passed independently.
+
+FINAL STATUS
+------------
+READY FOR USER-SIDE LIVE NASA/JPL CONNECTION TEST AND NORMAL OPERATION.

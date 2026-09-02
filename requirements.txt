@@ -1,0 +1,2 @@
+# No third-party Python packages are required.
+# Recommended: Python 3.11 or newer.

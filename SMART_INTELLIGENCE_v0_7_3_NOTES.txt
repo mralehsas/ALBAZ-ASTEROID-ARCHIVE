@@ -1,0 +1,17 @@
+Asteroid Archive v0.7.3 — SMART INTELLIGENCE
+
+Scope:
+- Read-only Smart Intelligence interface layer.
+- Scientific core remains frozen at v0.7.2.
+- No changes to Horizons, JPL client, server, SQLite schema/data, update engine, or scientific formulas.
+- UI changes are limited to index.html, css/app.css, and js/app.js.
+
+Features:
+- Selected-item intelligence modules: Identity / Orbit / Close Approach / Risk / Horizons / Map / Sources.
+- Data coverage indicator (display completeness only; not a risk score).
+- Current source matrix and connectivity state.
+- Provenance chain for the selected record.
+- Existing SBDB, Horizons, Smart Map and report actions are reused without new scientific calculations.
+
+Policy:
+Missing data remains unavailable. No scientific value is fabricated or silently estimated.

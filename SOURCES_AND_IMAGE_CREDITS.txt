@@ -1,0 +1,70 @@
+Asteroid Archive v0.7 Final Audited — Sources and Image Credits
+=================================================
+
+NASA/JPL scientific APIs
+------------------------
+NASA/JPL SSD/CNEOS API Service
+- Close-Approach Data API: https://ssd-api.jpl.nasa.gov/doc/cad.html
+- Fireball Data API: https://ssd-api.jpl.nasa.gov/doc/fireball.html
+- SBDB Object API: https://ssd-api.jpl.nasa.gov/doc/sbdb.html
+- SBDB Query API: https://ssd-api.jpl.nasa.gov/doc/sbdb_query.html
+- Sentry API: https://ssd-api.jpl.nasa.gov/doc/sentry.html
+
+Meteorite reference records
+----------------------------
+The Meteoritical Bulletin Database
+- Main database: https://www.lpi.usra.edu/meteor/
+- Individual source URLs are stored with every meteorite record in
+  data/earth_history.json and SQLite table meteorites.
+- Official names and classifications are attributed to the Meteoritical Society.
+- Recorded mass commonly represents total known recovered weight and may be rounded;
+  it must not be interpreted as pre-entry asteroid mass.
+
+Confirmed impact structures
+----------------------------
+Impact Earth Database, Western University
+- Main site: https://impact.uwo.ca/
+- Interactive map: https://impact.uwo.ca/impact-craters/map/
+- Individual source URLs and quality notes are stored with each record in
+  data/earth_history.json and SQLite table impact_structures.
+- The bundled set is curated and intentionally not presented as a full global export.
+
+Earth map
+---------
+NASA Earth Observatory — Blue Marble 2002.
+NASA Goddard Space Flight Center.
+Image by Reto Stöckli; enhancements by Robert Simmon.
+Bundled reduced-resolution image obtained from Wikimedia Commons:
+File: Blue Marble 2002.png
+The source file is identified as NASA public-domain material on its description page.
+
+Scientific attribution policy
+-----------------------------
+- Original NASA/JPL API JSON is retained in the SQLite scientific tables.
+- Missing source values remain missing.
+- Derived mass estimates are labelled as program estimates and are not attributed to NASA.
+- Meteorite and impact-structure records retain source name, URL and quality state.
+- No NASA logo, seal or official insignia is used in this application.
+
+v0.5 ORBITAL ENGINE
+-------------------
+JPL Horizons API documentation:
+https://ssd-api.jpl.nasa.gov/doc/horizons.html
+
+JPL Horizons system and manual:
+https://ssd.jpl.nasa.gov/horizons/
+https://ssd.jpl.nasa.gov/horizons/manual.html
+
+The bundled Apophis reference orbit is a labelled Keplerian visualization based
+on JPL Horizons osculating elements at JD 2460000.5. It is not presented as a
+replacement for a live numerical Horizons trajectory.
+
+v0.6 ADVANCED COMPARISON LAB
+----------------------------
+The comparison laboratory combines:
+- Close-approach distance and relative velocity from JPL CAD records.
+- Published physical and orbital parameters from JPL SBDB object profiles.
+- Program-derived spherical mass and kinetic-energy estimates.
+
+Derived estimates are explicitly labelled and use a user-selected density scenario.
+They are not presented as official NASA/JPL impact predictions or risk scores.

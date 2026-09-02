@@ -1,0 +1,23 @@
+ALBAZ ASTEROID ARCHIVE v0.7.5 — CINEMATIC EXPLORER FINAL
+
+Purpose
+-------
+Final read-only presentation layer built on top of v0.7.4 Smart Analytics.
+It does not modify the scientific core, NASA/JPL clients, Horizons engine,
+SQLite schema/data, update engine, or any astronomical calculation.
+
+Cinematic Explorer
+------------------
+- Six-scene data journey: Identity / Source / Orbit / Spatial Context / Analytics / Report.
+- Manual previous/next navigation and optional timed playback.
+- Uses the currently selected record only.
+- Opens the existing Smart Intelligence, Orbit, Smart Map, Smart Analytics and Report modules.
+- Orbit action is enabled only for record types already supported by the existing orbit workflow.
+- Smart Map action is enabled only when Earth-surface coordinates exist.
+- Missing values remain unavailable; no replacement or invented values are generated.
+
+Release policy
+--------------
+UI release: v0.7.5 CINEMATIC EXPLORER FINAL
+Scientific Core: v0.7.2 FROZEN
+Future scientific changes must be made in a new release branch, not in this frozen package.

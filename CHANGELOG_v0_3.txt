@@ -1,0 +1,33 @@
+Asteroid Archive v0.3 — NASA Data Engine
+=========================================
+
+ENGINE
+- Added background NASA/JPL update worker with live progress polling.
+- Added start, status, cancel and history local API endpoints.
+- Added safe retention of the last valid local dataset when a download fails.
+- Added priority SBDB profile enrichment with configurable limits.
+- Added local-first SBDB object profile retrieval and persistence.
+
+DATABASE
+- Replaced the generic v0.2 record table with structured tables:
+  objects, physical_properties, orbital_elements, close_approaches,
+  fireballs, sentry_risks, metadata and update_runs.
+- Original upstream JSON is retained in every scientific table.
+- Added indexes for dates, designations, distance, probability and energy.
+- Added first-run bundled reference seed data for offline validation.
+
+INTERFACE
+- Added a dedicated NASA Data Engine command-center view.
+- Added update configuration controls, live progress, engine logs and audit history.
+- Added database counters for each scientific dataset.
+- Added local/cache provenance banner to SBDB object reports.
+- Added clearly labelled mass estimate when a published diameter is available.
+- Updated Arabic and English interface strings and version labels.
+
+VALIDATION
+- Python source compilation checked.
+- JavaScript syntax checked with Node.js.
+- CSS parsed without syntax errors.
+- SQLite schema, seed, reads, update logs and SBDB profile persistence tested.
+- Complete update flow tested with deterministic mock NASA/JPL responses.
+- Local HTTP health, dataset and update-status endpoints tested.

@@ -1,0 +1,8 @@
+Asteroid Archive v0.7.2 — Smart Map Add-on
+
+Added only an independent 2D/3D smart Earth visualization layer.
+- 2D: reuses local NASA Blue Marble and existing archive coordinates.
+- 3D: offline WebGL globe using the same local Blue Marble texture.
+- Layers: fireballs, meteorites, impact structures, historical events.
+- Existing scientific calculations, NASA/JPL/Horizons engines, SQLite schema, reports and source datasets were not changed.
+- 3D controls: drag to rotate, wheel to zoom, double-click or Reset to restore view.

@@ -1,0 +1,65 @@
+ASTEROID ARCHIVE v0.7.3 — SMART INTELLIGENCE
+FINAL AUDIT SUMMARY
+
+Scope
+-----
+This release adds a read-only intelligence/presentation layer to the audited R5 GEO build.
+The scientific core remains frozen at v0.7.2.
+
+Scientific-core integrity
+-------------------------
+Unchanged against the R5 package:
+- database.py
+- server.py
+- jpl_client.py
+- horizons_engine.py
+- update_data.py
+- update_engine.py
+- data/asteroid_archive.db
+- data/bootstrap.json
+- data/earth_history.json
+- assets/blue_marble_1280.png
+The SQLite main database was restored byte-for-byte from the R5 package after testing.
+
+UI-only functional additions
+----------------------------
+- Smart Intelligence navigation/view.
+- Selected-item intelligence modules: Identity, Orbit, Close Approach, Risk, Horizons, Map, Sources.
+- Display-completeness indicator (explicitly not a risk/quality score).
+- Current data-source matrix.
+- Source/service status display.
+- Selected-record provenance chain.
+- Existing actions reused for SBDB, Horizons, Smart Map and item report.
+- No new scientific calculation was introduced.
+
+Automated audit
+---------------
+- JavaScript syntax: PASS
+- Python compilation: PASS
+- Internal self_test.py: 5/5 PASS
+  * Vector parser: PASS
+  * Horizons pipeline: PASS
+  * Lookup ambiguity: PASS
+  * Database backup/restore: PASS
+  * Versions/assets: PASS
+- SQLite integrity_check: OK
+- SQLite quick_check: OK
+- Local HTTP index: 200
+- /api/health: OK / database_ready=True
+- Local approaches/fireballs/meteorites/impact-structures/sentry endpoints: HTTP 200
+- HTML IDs: no duplicates
+- Direct JavaScript DOM ID references: no missing targets
+- HTML translation keys: no missing keys
+- JavaScript t() translation keys: no missing keys
+- Local assets referenced by index.html: no missing files
+
+Environment note
+----------------
+The container's headless Chromium environment does not reliably navigate its own loopback
+address although curl/API checks succeed, so no visual-browser PASS is claimed here.
+The interface-level code and DOM contracts were audited statically and through the local server.
+
+Policy
+------
+Missing values remain unavailable. The Smart Intelligence layer does not alter orbital solutions,
+close-approach calculations, Sentry probabilities, Horizons vectors, source data, or SQLite schema.

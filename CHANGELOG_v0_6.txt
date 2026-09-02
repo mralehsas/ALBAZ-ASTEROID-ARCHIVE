@@ -1,0 +1,32 @@
+Asteroid Archive v0.6 — Advanced Comparison Lab
+================================================
+
+NEW
+---
+- Rebuilt the comparison view as an independent scientific laboratory.
+- Compare up to four objects.
+- Add objects directly by designation, number or name through JPL SBDB.
+- Continue supporting selection from the close-approach table.
+- Automatic SBDB enrichment for selected close-approach records.
+- Side-by-side scientific matrix covering identity, encounter, physical and orbital fields.
+- Published/estimated/unavailable quality labels for every comparison field.
+- Density scenarios: carbonaceous, stony, dense stony, iron and custom.
+- Estimated mass and kinetic energy with explicit assumptions.
+- Relative bar charts for distance, velocity, diameter, mass, energy and MOID.
+- Comparison insights: closest, fastest, largest, highest estimated energy, lowest MOID, PHA count and data gaps.
+- Dedicated HTML comparison report and CSV export support.
+- Quick-selection examples based on the bundled close-approach reference set.
+
+FIXED
+-----
+- Corrected NASA updater numeric record-limit fields: any integer is now valid.
+- Added a global hidden-element rule so hidden panels and custom-density fields do not remain visible.
+- Corrected the inspector comparison action label.
+- Preserved local close-approach comparison when SBDB is temporarily unavailable.
+
+SCIENTIFIC POLICY
+-----------------
+- The comparison does not claim to predict impacts.
+- Encounter velocity is not labelled as atmospheric impact velocity.
+- Mass and energy are explicitly marked as estimates.
+- Missing values remain unavailable.

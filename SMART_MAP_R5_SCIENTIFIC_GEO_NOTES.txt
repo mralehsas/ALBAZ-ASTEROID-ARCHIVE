@@ -1,0 +1,17 @@
+ALBAZ Asteroid Archive — Smart Map R5 Geographic Intelligence
+
+Changes are isolated to index.html, css/app.css and js/app.js.
+Scientific engines, Python services, SQLite database and source datasets were not modified.
+
+Added:
+- WGS84 / EPSG:4326 coordinate readout
+- 15-degree latitude/longitude graticule in 2D and 3D
+- Equator and Greenwich prime meridian
+- Tropic of Cancer / Capricorn
+- Arctic / Antarctic circles
+- live cursor latitude/longitude in 2D and 3D
+- coordinate labels and compass overlay
+- independent toggles for grid/reference lines/labels
+- geographic overlays included in PNG export
+
+Reference parallel constants are conventional geographic values: ±23.4366° and ±66.5634°.

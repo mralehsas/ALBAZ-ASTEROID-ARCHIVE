@@ -1,0 +1,20 @@
+ALBAZ ASTEROID ARCHIVE v0.7.4 — SMART ANALYTICS
+
+Scope
+- Read-only analytics layer added over existing loaded records.
+- No orbit, risk, close-approach, Horizons, JPL, database, or update-engine computation was changed.
+- Missing values remain unavailable.
+
+Added views
+- Dataset inventory
+- Close-approach LD distribution
+- Nearest loaded records (display sorting only)
+- Field availability / completeness
+- Current source-health display
+- Raw Sentry values table (no reclassification)
+- Fireball yearly grouping
+- Selected-record analytic summary
+
+Scientific policy
+All displayed analytics are derived only by counting, sorting, grouping, or checking availability of fields already present in the active records.
+Scientific Core remains v0.7.2.

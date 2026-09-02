@@ -1,0 +1,42 @@
+Asteroid Archive v0.7 — Final Audited Edition
+=============================================
+
+HORIZONS
+- Added official Horizons Lookup resolution before requesting vectors.
+- Accepts asteroid number, name, primary designation, SPK-ID and known aliases.
+- Rejects ambiguous or missing targets with explicit messages.
+- Uses official Horizons VECTORS output: Sun-centred, ecliptic J2000/ICRF, AU-D.
+- Replaced ad-hoc parsing with robust CSV parsing plus defensive labelled parsing.
+- Aligns asteroid and Earth vectors by Julian date instead of array truncation.
+- Detects textual Horizons errors returned inside HTTP 200 responses.
+- Adds seven-day versioned atomic trajectory cache and offline cache reuse.
+- Connectivity diagnostics now generate and parse a real Earth vector table.
+- Labels the displayed nearest distance as a sampled minimum, not exact encounter time.
+
+NASA/JPL DATA ACCESS
+- Added one process-wide serialized request client for all official APIs.
+- Browser startup loads CAD, Fireball and Sentry sequentially.
+- Added retries for temporary HTTP/network failures.
+- Checks API signature versions for CAD 1.5, Fireball 1.2, SBDB 1.3,
+  Sentry 2.0, Horizons 1.3 and Horizons Lookup 1.1.
+- Added Horizons Lookup diagnostic card.
+
+DATABASE AND RELIABILITY
+- SQLite schema version raised to 7.
+- Full pre-update SQLite backup and automatic restore on failure or cancellation.
+- Live-cache writes are atomic.
+- Horizons cache writes are atomic and expire after seven days.
+- Local proxy now uses the same serialized NASA/JPL client.
+- Added Content Security Policy and stricter local-server headers.
+
+INTERFACE
+- Version labels updated to v0.7 Final Audited Edition.
+- Corrected comparison text to four objects.
+- Increased Horizons loading timeout and passes a controlled server timeout.
+- Displays the officially resolved Horizons target name.
+- Explicit sampled-minimum note in the orbit metrics.
+
+VERIFICATION
+- Added self_test.py for deterministic offline end-to-end Horizons tests.
+- Tests vector parsing, object resolution, ambiguity handling, epoch alignment,
+  distance calculation, cache reuse, SQLite rollback and interface integrity.
