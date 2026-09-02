@@ -13,7 +13,6 @@ import mimetypes
 import os
 import threading
 import time
-import urllib.error
 import urllib.parse
 import urllib.request
 import webbrowser
@@ -22,50 +21,12 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Final
 
-from database import (
-    DB_PATH,
-    counts,
-    get_object_profile,
-    initialize,
-    list_object_profiles,
-    metadata,
-    read_dataset,
-    recent_update_runs,
-    seed_if_empty,
-    upsert_object_profile,
-)
-from update_engine import fetch_json, run_update
-from horizons_engine import get_orbit_track, test_nasa_services
-from jpl_client import ensure_signature
+from api_core import ApiResponse, cors_headers, handle_get
+from database import DB_PATH, initialize, seed_if_empty
+from update_engine import run_update
 
 ROOT: Final[Path] = Path(__file__).resolve().parent
 VERSION: Final[str] = "0.7.2"
-REMOTE_ENDPOINTS: Final[dict[str, str]] = {
-    "/api/cad": "https://ssd-api.jpl.nasa.gov/cad.api",
-    "/api/fireball": "https://ssd-api.jpl.nasa.gov/fireball.api",
-    "/api/sbdb": "https://ssd-api.jpl.nasa.gov/sbdb.api",
-    "/api/sentry": "https://ssd-api.jpl.nasa.gov/sentry.api",
-    "/api/sbdb-query": "https://ssd-api.jpl.nasa.gov/sbdb_query.api",
-    "/api/horizons-lookup": "https://ssd.jpl.nasa.gov/api/horizons_lookup.api",
-}
-REMOTE_SERVICE_KEYS: Final[dict[str, str]] = {
-    "/api/cad": "cad",
-    "/api/fireball": "fireball",
-    "/api/sbdb": "sbdb",
-    "/api/sentry": "sentry",
-    "/api/horizons-lookup": "horizons_lookup",
-}
-LOCAL_DATASETS: Final[dict[str, str]] = {
-    "/api/local/approaches": "approaches",
-    "/api/local/fireballs": "fireballs",
-    "/api/local/sentry": "sentry",
-    "/api/local/objects": "objects",
-    "/api/local/meteorites": "meteorites",
-    "/api/local/impact-structures": "impact_structures",
-}
-CACHE_TTL_SECONDS: Final[int] = 300
-CACHE: dict[str, tuple[float, bytes, str]] = {}
-PAGES_ORIGIN: Final[str] = "https://mralehsas.github.io"
 
 
 def environment_default_host() -> str:
@@ -79,20 +40,6 @@ def environment_default_port() -> int:
     except ValueError:
         return 8872
     return port if 1 <= port <= 65535 else 8872
-
-
-def allowed_cors_origin(origin: str | None) -> str | None:
-    value = str(origin or "").strip()
-    if value == PAGES_ORIGIN:
-        return value
-    try:
-        parsed = urllib.parse.urlsplit(value)
-    except ValueError:
-        return None
-    if parsed.scheme in {"http", "https"} and parsed.hostname in {"127.0.0.1", "localhost"}:
-        return value
-    return None
-
 UPDATE_LOCK = threading.RLock()
 UPDATE_CANCEL = threading.Event()
 UPDATE_STATE: dict[str, Any] = {
@@ -164,12 +111,8 @@ class ArchiveHandler(SimpleHTTPRequestHandler):
         self.send_header("Pragma", "no-cache")
         self.send_header("Expires", "0")
         self.send_header("X-Asteroid-Archive-Version", VERSION)
-        origin = allowed_cors_origin(self.headers.get("Origin"))
-        if origin:
-            self.send_header("Access-Control-Allow-Origin", origin)
-            self.send_header("Vary", "Origin")
-            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-            self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        for name, value in cors_headers(self.headers.get("Origin")):
+            self.send_header(name, value)
         super().end_headers()
 
     def do_OPTIONS(self) -> None:  # noqa: N802
@@ -178,33 +121,16 @@ class ArchiveHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         parsed = urllib.parse.urlsplit(self.path)
-        if parsed.path in REMOTE_ENDPOINTS:
-            self._proxy_api(parsed.path, parsed.query)
-            return
-        if parsed.path in LOCAL_DATASETS:
-            dataset = LOCAL_DATASETS[parsed.path]
-            if dataset == "objects":
-                self._serve_object_list(parsed.query)
-            else:
-                self._serve_local_dataset(dataset, parsed.query)
-            return
-        if parsed.path == "/api/object":
-            self._serve_object(parsed.query)
-            return
-        if parsed.path == "/api/connectivity/test":
-            self._serve_connectivity_test(parsed.query)
-            return
-        if parsed.path == "/api/horizons/track":
-            self._serve_horizons_track(parsed.query)
-            return
-        if parsed.path == "/api/update/status":
-            self._send_json(update_snapshot())
-            return
-        if parsed.path == "/api/update/history":
-            self._serve_update_history(parsed.query)
-            return
-        if parsed.path == "/api/health":
-            self._serve_health()
+        if parsed.path.startswith("/api/"):
+            runtime = {
+                "deployment": "local",
+                "host_default": environment_default_host(),
+                "port_default": environment_default_port(),
+                "data_dir": str(DB_PATH.parent),
+                "external_data_dir": bool(str(os.environ.get("ALBAZ_DATA_DIR") or "").strip()),
+            }
+            response = handle_get(parsed.path, parsed.query, update_state=update_snapshot(), runtime=runtime)
+            self._write_api_response(response)
             return
         if parsed.path == "/":
             self.path = "/index.html"
@@ -274,151 +200,15 @@ class ArchiveHandler(SimpleHTTPRequestHandler):
         UPDATE_CANCEL.set()
         self._send_json({"accepted": True, "message": "cancel_requested", "state": update_snapshot()}, HTTPStatus.ACCEPTED)
 
-    def _proxy_api(self, route: str, query: str) -> None:
-        """Proxy official JSON APIs through the shared serialized JPL client."""
-        base_url = REMOTE_ENDPOINTS[route]
-        pairs = urllib.parse.parse_qsl(query, keep_blank_values=False)
-        params: dict[str, Any] = {}
-        for key, value in pairs:
-            if key in params:
-                current = params[key]
-                params[key] = [*current, value] if isinstance(current, list) else [current, value]
-            else:
-                params[key] = value
-        cache_key = base_url + "?" + urllib.parse.urlencode(sorted(pairs)) if pairs else base_url
-        cached = CACHE.get(cache_key)
-        if cached and time.time() - cached[0] < CACHE_TTL_SECONDS:
-            self._send_json_bytes(cached[1], cached[2], cached=True)
-            return
-        try:
-            payload = fetch_json(base_url, params, timeout=45)
-            service_key = REMOTE_SERVICE_KEYS.get(route)
-            if service_key:
-                ensure_signature(payload, service_key)
-            raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), default=str).encode("utf-8")
-            content_type = "application/json"
-            CACHE[cache_key] = (time.time(), raw, content_type)
-            self._send_json_bytes(raw, content_type, cached=False)
-        except Exception as exc:
-            self._send_error_json(HTTPStatus.BAD_GATEWAY, "Unable to reach NASA/JPL", str(exc))
-
-    def _serve_local_dataset(self, dataset: str, query: str) -> None:
-        params = urllib.parse.parse_qs(query)
-        try:
-            limit = int(params.get("limit", ["5000"])[0])
-        except (TypeError, ValueError):
-            limit = 5000
-        rows = read_dataset(dataset, limit=limit)
-        self._send_json({"dataset": dataset, "count": len(rows), "records": rows})
-
-    def _serve_object_list(self, query: str) -> None:
-        params = urllib.parse.parse_qs(query)
-        q = params.get("q", [""])[0]
-        try:
-            limit = int(params.get("limit", ["100"])[0])
-        except (TypeError, ValueError):
-            limit = 100
-        rows = list_object_profiles(q, limit=limit)
-        self._send_json({"dataset": "objects", "count": len(rows), "records": rows})
-
-    def _serve_object(self, query: str) -> None:
-        params = urllib.parse.parse_qs(query)
-        sstr = str(params.get("sstr", [""])[0]).strip()
-        refresh = str(params.get("refresh", ["0"])[0]).lower() in {"1", "true", "yes"}
-        if not sstr:
-            self._send_error_json(HTTPStatus.BAD_REQUEST, "Missing object identifier", "Parameter sstr is required")
-            return
-        cached = None if refresh else get_object_profile(sstr)
-        if cached:
-            cached.setdefault("archive_cache", {}).update({"hit": True, "source": "SQLite"})
-            self._send_json(cached)
-            return
-        try:
-            payload = fetch_json(
-                "https://ssd-api.jpl.nasa.gov/sbdb.api",
-                {"sstr": sstr, "phys-par": "true", "full-prec": "true"},
-                timeout=35,
-            )
-            ensure_signature(payload, "sbdb")
-            upsert_object_profile(payload)
-            payload["archive_cache"] = {"hit": False, "stored_locally": True, "source": "NASA/JPL SBDB"}
-            self._send_json(payload)
-        except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace") if hasattr(exc, "read") else str(exc)
-            self._send_error_json(exc.code, "SBDB request failed", detail)
-        except Exception as exc:
-            # Last chance: a stale local profile is better than inventing data.
-            fallback = get_object_profile(sstr)
-            if fallback:
-                fallback.setdefault("archive_cache", {}).update({"hit": True, "stale": True, "error": str(exc)})
-                self._send_json(fallback)
-            else:
-                self._send_error_json(HTTPStatus.BAD_GATEWAY, "Unable to load object profile", str(exc))
-
-    def _serve_connectivity_test(self, query: str) -> None:
-        params = urllib.parse.parse_qs(query)
-        try:
-            timeout = int(params.get("timeout", ["10"])[0])
-        except (TypeError, ValueError):
-            timeout = 10
-        try:
-            self._send_json(test_nasa_services(timeout=timeout))
-        except Exception as exc:
-            self._send_error_json(HTTPStatus.INTERNAL_SERVER_ERROR, "Connectivity test failed", str(exc))
-
-    def _serve_horizons_track(self, query: str) -> None:
-        params = urllib.parse.parse_qs(query)
-        target = str(params.get("target", ["99942"])[0]).strip()
-        start = str(params.get("start", [utc_stamp()[:10]])[0]).strip()
-        try:
-            days = int(params.get("days", ["730"])[0])
-            step_days = int(params.get("step", ["5"])[0])
-            timeout = int(params.get("timeout", ["55"])[0])
-        except (TypeError, ValueError):
-            self._send_error_json(HTTPStatus.BAD_REQUEST, "Invalid Horizons parameters", "days, step and timeout must be integers")
-            return
-        refresh = str(params.get("refresh", ["0"])[0]).lower() in {"1", "true", "yes"}
-        try:
-            payload = get_orbit_track(target, start, days=days, step_days=step_days, timeout=timeout, refresh=refresh)
-            self._send_json(payload)
-        except ValueError as exc:
-            self._send_error_json(HTTPStatus.BAD_REQUEST, "Horizons request is invalid", str(exc))
-        except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace") if hasattr(exc, "read") else str(exc)
-            self._send_error_json(exc.code, "Horizons request failed", detail)
-        except Exception as exc:
-            self._send_error_json(HTTPStatus.BAD_GATEWAY, "Unable to load Horizons trajectory", str(exc))
-
-    def _serve_update_history(self, query: str) -> None:
-        params = urllib.parse.parse_qs(query)
-        try:
-            limit = int(params.get("limit", ["10"])[0])
-        except (TypeError, ValueError):
-            limit = 10
-        self._send_json({"records": recent_update_runs(limit=limit)})
-
-    def _serve_health(self) -> None:
-        self._send_json(
-            {
-                "status": "ok",
-                "application": "Asteroid Archive",
-                "package": "v0.7.2 Horizons Fixed — Port Isolation R1",
-                "version": VERSION,
-                "database_ready": DB_PATH.exists(),
-                "database_path": str(DB_PATH.name),
-                "counts": counts(),
-                "metadata": metadata(),
-                "cache_entries": len(CACHE),
-                "update": update_snapshot(),
-                "recent_updates": recent_update_runs(limit=3),
-                "runtime": {
-                    "host_default": environment_default_host(),
-                    "port_default": environment_default_port(),
-                    "data_dir": str(DB_PATH.parent),
-                    "external_data_dir": bool(str(os.environ.get("ALBAZ_DATA_DIR") or "").strip()),
-                },
-            }
-        )
+    def _write_api_response(self, response: ApiResponse) -> None:
+        self.send_response(int(response.status))
+        self.send_header("Content-Type", response.content_type)
+        self.send_header("Content-Length", str(len(response.body)))
+        for name, value in response.headers:
+            self.send_header(name, value)
+        self.end_headers()
+        if response.body:
+            self.wfile.write(response.body)
 
     def _send_json(self, payload: object, status: int | HTTPStatus = HTTPStatus.OK) -> None:
         raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), default=str).encode("utf-8")
@@ -427,14 +217,6 @@ class ArchiveHandler(SimpleHTTPRequestHandler):
         self.send_header("Content-Length", str(len(raw)))
         self.end_headers()
         self.wfile.write(raw)
-
-    def _send_json_bytes(self, payload: bytes, content_type: str, *, cached: bool) -> None:
-        self.send_response(HTTPStatus.OK)
-        self.send_header("Content-Type", f"{content_type}; charset=utf-8")
-        self.send_header("Content-Length", str(len(payload)))
-        self.send_header("X-Archive-Cache", "HIT" if cached else "MISS")
-        self.end_headers()
-        self.wfile.write(payload)
 
     def _send_error_json(self, status: int | HTTPStatus, message: str, detail: str) -> None:
         self._send_json({"error": message, "detail": detail}, status)
@@ -456,8 +238,8 @@ def main() -> int:
     requested_port = int(args.port)
     server = None
     last_error = None
-    render_managed_port = bool(str(os.environ.get("PORT") or "").strip())
-    port_candidates = [requested_port] if render_managed_port else range(requested_port, requested_port + 21)
+    environment_managed_port = bool(str(os.environ.get("PORT") or "").strip())
+    port_candidates = [requested_port] if environment_managed_port else range(requested_port, requested_port + 21)
     for candidate_port in port_candidates:
         try:
             server = ThreadingHTTPServer((args.host, candidate_port), ArchiveHandler)
