@@ -7,126 +7,42 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  browser-diagnostic:
+  verify-and-patch:
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: fix/live-search-update
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Apply exact frontend patch
+        run: python patch_live_search_update.py
       - name: Live search/update regression
         run: python frontend_search_update_test.py
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Install browser driver
-        run: npm install --no-save puppeteer-core@24
-      - name: Exercise production search and refresh
+      - name: Console-mode regression
+        run: python frontend_console_mode_test.py
+      - name: Calculation regression
+        run: python frontend_calculation_test.py
+      - name: Scientific self-test
+        run: python self_test.py
+      - name: Deployment regression suite
+        run: python deployment_test.py
+      - name: Compile Python modules
+        run: python -m compileall -q api_core.py pythonanywhere_wsgi.py server.py database.py update_data.py update_engine.py horizons_engine.py
+      - name: Commit patched frontend if changed
         shell: bash
         run: |
-          CHROME="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || true)"
-          test -n "$CHROME"
-          export CHROME
-          node <<'NODE'
-          const puppeteer = require('puppeteer-core');
-          const assert = require('node:assert/strict');
-          const sleep = ms => new Promise(r => setTimeout(r, ms));
-
-          (async () => {
-            const browser = await puppeteer.launch({
-              executablePath: process.env.CHROME,
-              headless: true,
-              args: ['--no-sandbox', '--disable-dev-shm-usage']
-            });
-            const page = await browser.newPage();
-            page.setDefaultTimeout(180000);
-            const requests = [];
-            const responses = [];
-            const consoleErrors = [];
-
-            page.on('request', req => {
-              const u = req.url();
-              if (u.includes('omaralbaz9.pythonanywhere.com/api/')) {
-                requests.push(u);
-                console.log('API_REQUEST', u);
-              }
-            });
-            page.on('response', res => {
-              const u = res.url();
-              if (u.includes('omaralbaz9.pythonanywhere.com/api/')) {
-                responses.push([res.status(), u]);
-                console.log('API_RESPONSE', res.status(), u);
-              }
-            });
-            page.on('console', msg => {
-              if (msg.type() === 'error') consoleErrors.push(msg.text());
-              console.log('BROWSER', msg.type(), msg.text());
-            });
-            page.on('pageerror', err => consoleErrors.push('PAGEERROR ' + err.message));
-
-            await page.goto('https://mralehsas.github.io/ALBAZ-ASTEROID-ARCHIVE/?diag=' + Date.now(), {
-              waitUntil: 'networkidle2', timeout: 120000
-            });
-            await page.waitForFunction(() => document.querySelector('#connectionText')?.textContent.includes('Backend Online'), {timeout:30000});
-            await page.waitForFunction(() => document.querySelector('#loadingOverlay')?.hidden === true, {timeout:120000});
-
-            const beforeHealth = await page.evaluate(async () => {
-              const r = await fetch('https://omaralbaz9.pythonanywhere.com/api/health', {cache:'no-store'});
-              return await r.json();
-            });
-            console.log('HEALTH_BEFORE', JSON.stringify(beforeHealth.counts));
-
-            requests.length = 0;
-            responses.length = 0;
-            await page.$eval('#globalSearch', el => { el.value='101955'; el.dispatchEvent(new Event('input',{bubbles:true})); });
-            await page.focus('#globalSearch');
-            await page.keyboard.press('Enter');
-            await page.waitForFunction(() => {
-              const title = document.querySelector('#dialogTitle')?.textContent || '';
-              return /Bennu|101955/i.test(title);
-            }, {timeout:60000});
-            await sleep(500);
-            console.log('SEARCH_REQUESTS', JSON.stringify(requests));
-            assert.ok(requests.some(u => u.includes('/api/sbdb?') || u.includes('/api/object?')), 'Search issued no SBDB/object request');
-
-            const afterSearchHealth = await page.evaluate(async () => {
-              const r = await fetch('https://omaralbaz9.pythonanywhere.com/api/health', {cache:'no-store'});
-              return await r.json();
-            });
-            console.log('HEALTH_AFTER_SEARCH', JSON.stringify(afterSearchHealth.counts));
-            console.log('SEARCH_OBJECT_COUNT_DELTA', Number(afterSearchHealth.counts?.objects||0)-Number(beforeHealth.counts?.objects||0));
-
-            await page.evaluate(() => {
-              const dialog = document.querySelector('#objectDialog');
-              if (dialog?.open) dialog.close();
-            });
-            await page.$eval('#globalSearch', el => { el.value=''; el.dispatchEvent(new Event('input',{bubbles:true})); });
-            requests.length = 0;
-            responses.length = 0;
-            await page.click('#loadDataButton');
-            await page.waitForFunction(() => document.querySelector('#loadingOverlay')?.hidden === true, {timeout:120000});
-            await sleep(500);
-            console.log('REFRESH_REQUESTS', JSON.stringify(requests));
-            assert.ok(requests.some(u => u.includes('/api/cad?')), 'Load register did not request CAD');
-            assert.ok(requests.some(u => u.includes('/api/fireball')), 'Load register did not request Fireball');
-            assert.ok(requests.some(u => u.includes('/api/sentry')), 'Load register did not request Sentry');
-
-            const archiveUi = await page.evaluate(() => ({
-              startDisabled: document.querySelector('#startNasaUpdateButton')?.disabled,
-              stage: document.querySelector('#engineStage')?.textContent?.trim(),
-              title: document.querySelector('#engineProgressTitle')?.textContent?.trim(),
-              message: document.querySelector('#engineMessage')?.textContent?.trim()
-            }));
-            console.log('ARCHIVE_UI', JSON.stringify(archiveUi));
-            assert.equal(archiveUi.startDisabled, true, 'Expected current cloud full-archive button to be disabled');
-
-            const relevantErrors = consoleErrors.filter(x => !/favicon|Failed to load resource.*404/i.test(x));
-            console.log('CONSOLE_ERRORS', JSON.stringify(relevantErrors));
-            assert.deepEqual(relevantErrors, []);
-            await browser.close();
-          })().catch(err => { console.error(err.stack || err); process.exit(1); });
-          NODE
+          if git diff --quiet -- index.html; then
+            echo "index.html already contains the fix"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "fix: restore live search archive and cloud refresh"
+          git push origin HEAD:fix/live-search-update
