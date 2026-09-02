@@ -128,7 +128,11 @@ jobs:
             await page.$eval('#globalSearch', el => { el.value=''; el.dispatchEvent(new Event('input',{bubbles:true})); });
 
             // Cloud update button must perform an actual live data refresh.
-            await page.waitForFunction(() => !document.querySelector('#startNasaUpdateButton')?.disabled, {timeout:10000});
+            await page.click('#openNasaEngineButton');
+            await page.waitForFunction(() => {
+              const button = document.querySelector('#startNasaUpdateButton');
+              return button && button.offsetParent !== null && !button.disabled;
+            }, {timeout:10000});
             const refreshLabel = await page.$eval('#startNasaUpdateButton b', el => el.textContent.trim());
             console.log('LIVE_REFRESH_LABEL', refreshLabel);
             apiRequests.length = 0;
