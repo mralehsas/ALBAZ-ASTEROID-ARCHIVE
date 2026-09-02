@@ -1,0 +1,17 @@
+{
+  "generated_at": "2026-07-03T00:00:00Z",
+  "note": "Bundled reference records for offline interface validation. Use NASA Data Engine to replace them with current official API data.",
+  "closeApproaches": [
+    {"des":"99942","fullname":"99942 Apophis (2004 MN4)","cd":"2029-Apr-13 21:46","dist":"0.000254099098170977","dist_min":"0.000254085852623379","dist_max":"0.000254112343772133","v_rel":"7.42249308586014","v_inf":"5.84135545611464","h":"19.7","diameter":"0.34","diameter_sigma":"0.04","orbit_id":"206","body":"Earth","source_mode":"bundled_reference"},
+    {"des":"153814","fullname":"153814 (2001 WN5)","cd":"2028-Jun-26 05:23","dist":"0.00166253924938707","dist_min":"0.00166237672775144","dist_max":"0.00166270177137481","v_rel":"10.2426019613426","v_inf":"10.084918538826","h":"18.33","diameter":"0.932","diameter_sigma":"0.011","orbit_id":"174","body":"Earth","source_mode":"bundled_reference"},
+    {"des":"2001 AV43","fullname":"(2001 AV43)","cd":"2029-Nov-11 15:25","dist":"0.00209271674918052","dist_min":"0.00209125158265035","dist_max":"0.00209418316351851","v_rel":"3.99789389003422","v_inf":"3.66561381185116","h":"24.6","diameter":null,"diameter_sigma":null,"orbit_id":"42","body":"Earth","source_mode":"bundled_reference"}
+  ],
+  "fireballs": [
+    {"date":"2013-02-15 03:20:33","energy":"37500","impact-e":"440","lat":"54.8","lat-dir":"N","lon":"61.1","lon-dir":"E","alt":"23.3","vel":"18.6","source_mode":"bundled_reference"},
+    {"date":"2018-12-18 23:48:20","energy":"17300","impact-e":"173","lat":"56.9","lat-dir":"N","lon":"172.4","lon-dir":"E","alt":"25.6","vel":"32.0","source_mode":"bundled_reference"},
+    {"date":"2009-10-08 02:57:00","energy":"2000","impact-e":"33","lat":"4.2","lat-dir":"S","lon":"120.6","lon-dir":"E","alt":"19.1","vel":"19.2","source_mode":"bundled_reference"},
+    {"date":"2014-01-08 17:05:34","energy":"3500","impact-e":"13","lat":"1.3","lat-dir":"S","lon":"147.6","lon-dir":"E","alt":"18.7","vel":"44.8","source_mode":"bundled_reference"},
+    {"date":"2017-12-15 13:14:37","energy":"311","impact-e":"2.9","lat":"60.2","lat-dir":"N","lon":"170.0","lon-dir":"E","alt":"20.0","vel":"31.4","source_mode":"bundled_reference"}
+  ],
+  "sentry": []
+}
