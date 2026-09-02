@@ -1,0 +1,47 @@
+name: Frontend calculation regression
+
+on:
+  push:
+    branches:
+      - main
+      - fix/frontend-calculation-paths
+    paths:
+      - 'index.html'
+      - 'frontend_calculation_test.py'
+      - 'frontend_console_mode_test.py'
+      - 'self_test.py'
+      - 'deployment_test.py'
+      - '.github/workflows/frontend-calculation-regression.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'index.html'
+      - 'frontend_calculation_test.py'
+      - 'frontend_console_mode_test.py'
+      - 'self_test.py'
+      - 'deployment_test.py'
+      - '.github/workflows/frontend-calculation-regression.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Frontend calculation regression
+        run: python frontend_calculation_test.py
+      - name: PythonAnywhere console-mode regression
+        run: python frontend_console_mode_test.py
+      - name: Scientific self-test
+        run: python self_test.py
+      - name: Deployment regression suite
+        run: python deployment_test.py
+      - name: Compile Python modules
+        run: python -m compileall -q api_core.py runtime_paths.py database.py horizons_engine.py jpl_client.py update_engine.py server.py pythonanywhere_wsgi.py self_test.py deployment_test.py frontend_calculation_test.py frontend_console_mode_test.py
