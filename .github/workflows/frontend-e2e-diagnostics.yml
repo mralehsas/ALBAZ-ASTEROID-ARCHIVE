@@ -18,7 +18,7 @@ jobs:
           node-version: '22'
       - name: Install browser driver library
         run: npm install --no-save puppeteer-core@24
-      - name: Audit production interactions after load completion
+      - name: Audit all production calculation paths
         shell: bash
         run: |
           CHROME="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || true)"
@@ -29,150 +29,86 @@ jobs:
           const assert = require('node:assert/strict');
           const sleep = ms => new Promise(r => setTimeout(r, ms));
           (async () => {
-            const browser = await puppeteer.launch({
-              executablePath: process.env.CHROME,
-              headless: true,
-              args: ['--no-sandbox','--disable-dev-shm-usage']
-            });
+            const browser = await puppeteer.launch({executablePath:process.env.CHROME,headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
             const page = await browser.newPage();
             page.setDefaultTimeout(180000);
-            const consoleErrors = [];
-            const horizonRequests = [];
-            page.on('console', msg => {
-              const text = msg.text();
-              if (msg.type() === 'error') consoleErrors.push(text);
-              console.log('BROWSER', msg.type(), text);
-            });
-            page.on('pageerror', err => {
-              consoleErrors.push('PAGEERROR ' + err.message);
-              console.log('PAGEERROR', err.message);
-            });
-            page.on('request', req => {
-              if (req.url().includes('/api/horizons/track')) {
-                horizonRequests.push(req.url());
-                console.log('HORIZONS_REQUEST', req.url());
-              }
-            });
-            page.on('response', async res => {
-              if (res.url().includes('/api/horizons/track')) {
-                console.log('HORIZONS_RESPONSE', res.status(), res.url());
-              }
-            });
-            page.on('requestfailed', req => console.log('REQUEST_FAILED', req.url(), req.failure()?.errorText));
+            const consoleErrors=[]; const horizonRequests=[]; const defects=[];
+            page.on('console', msg => { const text=msg.text(); if(msg.type()==='error') consoleErrors.push(text); console.log('BROWSER',msg.type(),text); });
+            page.on('pageerror', err => { consoleErrors.push('PAGEERROR '+err.message); console.log('PAGEERROR',err.message); });
+            page.on('request', req => { if(req.url().includes('/api/horizons/track')) { horizonRequests.push(req.url()); console.log('HORIZONS_REQUEST',req.url()); }});
+            page.on('response', res => { if(res.url().includes('/api/horizons/track')) console.log('HORIZONS_RESPONSE',res.status(),res.url()); });
+            page.on('requestfailed', req => console.log('REQUEST_FAILED',req.url(),req.failure()?.errorText));
 
-            await page.goto('https://mralehsas.github.io/ALBAZ-ASTEROID-ARCHIVE/?e2e=' + Date.now(), {
-              waitUntil:'networkidle2', timeout:120000
-            });
-            await page.waitForFunction(() => document.querySelector('#connectionText')?.textContent.includes('Backend Online'), {timeout:30000});
-            // Wait for the application's own load cycle, not an incidental counter.
-            await page.waitForFunction(() => document.querySelector('#loadingOverlay')?.hidden === true, {timeout:120000});
-            await sleep(1000);
-            console.log('BOOT_COMPLETE', JSON.stringify(await page.evaluate(() => ({
-              connection: document.querySelector('#connectionText')?.textContent,
-              loaded: document.querySelector('#loadedRecordsValue')?.textContent,
-              source: document.querySelector('#sourceModeValue')?.textContent,
-              status: document.querySelector('#statusMessage')?.textContent,
-              approachRows: document.querySelectorAll('button.table-action[data-approach-index]').length,
-              sentryRows: document.querySelectorAll('[data-sentry-index]').length,
+            await page.goto('https://mralehsas.github.io/ALBAZ-ASTEROID-ARCHIVE/?e2e='+Date.now(),{waitUntil:'networkidle2',timeout:120000});
+            await page.waitForFunction(()=>document.querySelector('#connectionText')?.textContent.includes('Backend Online'),{timeout:30000});
+            await page.waitForFunction(()=>document.querySelector('#loadingOverlay')?.hidden===true,{timeout:120000});
+            await sleep(800);
+            console.log('BOOT_COMPLETE',JSON.stringify(await page.evaluate(()=>({
+              connection:document.querySelector('#connectionText')?.textContent,
+              loaded:document.querySelector('#loadedRecordsValue')?.textContent,
+              source:document.querySelector('#sourceModeValue')?.textContent,
+              approachRows:document.querySelectorAll('button.table-action[data-approach-index]').length
             }))));
 
-            // 1) Scientific analyzer: click the actual visible submit button after full load.
+            // Analyzer defect: record it, but continue to audit independent modules.
             await page.click('[data-view-target="analyzer"]');
-            await page.evaluate(() => {
-              const set = (id, value) => {
-                const el = document.querySelector(id);
-                el.value = value;
-                el.dispatchEvent(new Event('input', {bubbles:true}));
-              };
-              set('#analyzerDiameter', '20');
-              set('#analyzerDensity', '3000');
-              set('#analyzerSpeed', '19');
-              set('#analyzerAngle', '45');
+            const analyzerValidity=await page.$eval('#analyzerForm',form=>({valid:form.checkValidity(),inputs:[...form.elements].map(e=>({id:e.id,value:e.value,valid:e.checkValidity?e.checkValidity():true,message:e.validationMessage||''}))}));
+            console.log('ANALYZER_VALIDITY',JSON.stringify(analyzerValidity));
+            if(!analyzerValidity.valid) defects.push('analyzer_form_invalid');
+            // Input events directly exercise the scientific calculator even while native submit is blocked.
+            await page.evaluate(()=>{
+              const vals={analyzerDiameter:'20',analyzerDensity:'3000',analyzerSpeed:'19',analyzerAngle:'45'};
+              for(const [id,value] of Object.entries(vals)){ const e=document.getElementById(id); e.value=value; e.dispatchEvent(new Event('input',{bubbles:true})); }
             });
-            const analyzerValidity = await page.$eval('#analyzerForm', form => ({
-              valid: form.checkValidity(),
-              inputs: [...form.elements].map(e => ({id:e.id, value:e.value, valid:e.checkValidity ? e.checkValidity() : true, message:e.validationMessage || ''}))
-            }));
-            console.log('ANALYZER_VALIDITY', JSON.stringify(analyzerValidity));
-            assert.equal(analyzerValidity.valid, true, 'Analyzer form is invalid');
-            await page.click('#analyzerForm button[type="submit"]');
-            const analyzer = await page.evaluate(() => ({
-              volume: document.querySelector('#resultVolume')?.textContent || '',
-              mass: document.querySelector('#resultMass')?.textContent || '',
-              energy: document.querySelector('#resultEnergy')?.textContent || '',
-              tnt: document.querySelector('#resultTnt')?.textContent || '',
-            }));
-            console.log('ANALYZER', JSON.stringify(analyzer));
-            for (const [key, value] of Object.entries(analyzer)) assert.ok(value.trim() && value.trim() !== '—', `Analyzer ${key} did not calculate`);
+            const analyzer=await page.evaluate(()=>({volume:document.querySelector('#resultVolume')?.textContent,mass:document.querySelector('#resultMass')?.textContent,energy:document.querySelector('#resultEnergy')?.textContent,tnt:document.querySelector('#resultTnt')?.textContent}));
+            console.log('ANALYZER_FUNCTION',JSON.stringify(analyzer));
+            for(const value of Object.values(analyzer)) assert.ok(value && value.trim()!=='—','Analyzer calculation function failed');
 
-            // 2) Live SBDB comparison.
+            // Live SBDB comparison.
             await page.click('[data-view-target="compare"]');
-            await page.evaluate(() => { document.querySelector('#compareObjectSearch').value = '99942'; });
+            await page.evaluate(()=>{document.querySelector('#compareObjectSearch').value='99942';});
             await page.click('#compareAddButton');
-            await page.waitForFunction(() => /Apophis/i.test(document.querySelector('#compareCards')?.textContent || ''), {timeout:60000});
-            console.log('COMPARE', (await page.$eval('#compareCards', e => e.textContent.replace(/\s+/g,' ').trim())).slice(0,1200));
+            await page.waitForFunction(()=>/Apophis/i.test(document.querySelector('#compareCards')?.textContent||''),{timeout:60000});
+            console.log('COMPARE',(await page.$eval('#compareCards',e=>e.textContent.replace(/\s+/g,' ').trim())).slice(0,1000));
 
-            // 3) Inspect and submit the actual Horizons form.
+            // Manual Horizons form.
             await page.click('[data-view-target="orbit"]');
-            await page.evaluate(() => {
-              document.querySelector('#orbitTarget').value = '99942';
-              document.querySelector('#orbitDays').value = '10';
-              document.querySelector('#orbitStep').value = '2';
-            });
-            const orbitValidity = await page.$eval('#orbitForm', form => ({
-              valid: form.checkValidity(),
-              inputs: [...form.elements].map(e => ({
-                tag:e.tagName, type:e.type, id:e.id, value:e.value,
-                valid:e.checkValidity ? e.checkValidity() : true,
-                message:e.validationMessage || '',
-                willValidate:e.willValidate,
-                visible:!!(e.offsetWidth || e.offsetHeight || e.getClientRects().length)
-              }))
-            }));
-            console.log('ORBIT_VALIDITY', JSON.stringify(orbitValidity));
-            assert.equal(orbitValidity.valid, true, 'Orbit form is invalid before submission');
-            const before = horizonRequests.length;
+            await page.evaluate(()=>{document.querySelector('#orbitTarget').value='99942';document.querySelector('#orbitDays').value='10';document.querySelector('#orbitStep').value='2';});
+            const orbitValidity=await page.$eval('#orbitForm',form=>({valid:form.checkValidity(),inputs:[...form.elements].map(e=>({id:e.id,type:e.type,value:e.value,valid:e.checkValidity?e.checkValidity():true,message:e.validationMessage||'',visible:!!(e.offsetWidth||e.offsetHeight||e.getClientRects().length)}))}));
+            console.log('ORBIT_VALIDITY',JSON.stringify(orbitValidity));
+            if(!orbitValidity.valid) defects.push('orbit_form_invalid');
+            const before=horizonRequests.length;
             await page.click('#loadHorizonsTrackButton');
-            await page.waitForFunction(() => document.querySelector('#orbitLoading')?.hidden === false, {timeout:10000}).catch(() => null);
-            await page.waitForFunction(() => document.querySelector('#orbitMetricSource')?.textContent.trim() === 'HORIZONS', {timeout:120000}).catch(() => null);
-            await sleep(1000);
-            const orbit = await page.evaluate(() => ({
-              source:document.querySelector('#orbitMetricSource')?.textContent?.trim(),
-              points:document.querySelector('#orbitMetricPoints')?.textContent,
-              nearest:document.querySelector('#orbitMetricNearest')?.textContent,
-              loadingHidden:document.querySelector('#orbitLoading')?.hidden,
-              toast:[...document.querySelectorAll('.toast')].map(x=>x.textContent),
-            }));
-            console.log('ORBIT_MANUAL', JSON.stringify(orbit));
-            console.log('HORIZONS_REQUEST_COUNT', horizonRequests.length - before);
-            assert.ok(horizonRequests.length > before, 'Orbit submit never issued /api/horizons/track');
-            assert.equal(orbit.source, 'HORIZONS', 'Manual Horizons result was not rendered');
+            await page.waitForFunction(()=>document.querySelector('#orbitMetricSource')?.textContent.trim()==='HORIZONS',{timeout:120000}).catch(()=>null);
+            await sleep(500);
+            const orbit=await page.evaluate(()=>({source:document.querySelector('#orbitMetricSource')?.textContent?.trim(),points:document.querySelector('#orbitMetricPoints')?.textContent,nearest:document.querySelector('#orbitMetricNearest')?.textContent,toast:[...document.querySelectorAll('.toast')].map(x=>x.textContent)}));
+            console.log('ORBIT_MANUAL',JSON.stringify(orbit),'requests',horizonRequests.length-before);
+            if(horizonRequests.length===before) defects.push('manual_horizons_no_request');
+            else if(orbit.source!=='HORIZONS') defects.push('manual_horizons_not_rendered');
 
-            // 4) Selected-object quick orbit path.
+            // Selected-object quick orbit.
             await page.click('[data-view-target="approaches"]');
-            await page.waitForSelector('button.table-action[data-approach-index]', {timeout:30000});
+            await page.waitForSelector('button.table-action[data-approach-index]',{timeout:30000});
             await page.click('button.table-action[data-approach-index]');
-            await page.waitForFunction(() => !document.querySelector('#openOrbitButton')?.disabled, {timeout:10000});
+            await page.waitForFunction(()=>!document.querySelector('#openOrbitButton')?.disabled,{timeout:10000});
             await page.click('[data-view-target="orbit"]');
             await page.click('#loadReferenceOrbitButton');
-            await page.waitForFunction(() => document.querySelector('#orbitMetricSource')?.textContent.trim() === 'LOCAL', {timeout:10000});
+            await page.waitForFunction(()=>document.querySelector('#orbitMetricSource')?.textContent.trim()==='LOCAL',{timeout:10000});
             await page.click('[data-view-target="approaches"]');
-            const quickBefore = horizonRequests.length;
+            const quickBefore=horizonRequests.length;
             await page.click('#openOrbitButton');
             await sleep(8000);
-            const quick = await page.evaluate(() => ({
-              source:document.querySelector('#orbitMetricSource')?.textContent?.trim(),
-              target:document.querySelector('#orbitTarget')?.value,
-              viewActive:document.querySelector('#view-orbit')?.classList.contains('active')
-            }));
-            console.log('ORBIT_QUICK', JSON.stringify(quick));
-            console.log('QUICK_HORIZONS_REQUEST_COUNT', horizonRequests.length - quickBefore);
-            assert.ok(horizonRequests.length > quickBefore, 'Selected-object quick orbit never issued Horizons request');
-            assert.equal(quick.source, 'HORIZONS');
+            const quick=await page.evaluate(()=>({source:document.querySelector('#orbitMetricSource')?.textContent?.trim(),target:document.querySelector('#orbitTarget')?.value,active:document.querySelector('#view-orbit')?.classList.contains('active')}));
+            console.log('ORBIT_QUICK',JSON.stringify(quick),'requests',horizonRequests.length-quickBefore);
+            if(horizonRequests.length===quickBefore) defects.push('quick_orbit_localhost_gate');
+            else if(quick.source!=='HORIZONS') defects.push('quick_orbit_not_rendered');
 
-            const relevantErrors = consoleErrors.filter(x => !/favicon|Failed to load resource.*404/i.test(x));
-            console.log('CONSOLE_ERRORS', JSON.stringify(relevantErrors));
-            assert.equal(relevantErrors.length, 0, 'Browser console contained runtime errors');
+            const relevantErrors=consoleErrors.filter(x=>!/favicon|Failed to load resource.*404/i.test(x));
+            console.log('CONSOLE_ERRORS',JSON.stringify(relevantErrors));
+            console.log('DEFECTS',JSON.stringify(defects));
+            // Expected RED: production currently has known defects. Fail after collecting all evidence.
+            assert.deepEqual(defects,[],`Production calculation defects: ${defects.join(', ')}`);
+            assert.equal(relevantErrors.length,0,'Browser console contained runtime errors');
             await browser.close();
-          })().catch(err => { console.error(err.stack || err); process.exit(1); });
+          })().catch(err=>{console.error(err.stack||err);process.exit(1);});
           NODE
