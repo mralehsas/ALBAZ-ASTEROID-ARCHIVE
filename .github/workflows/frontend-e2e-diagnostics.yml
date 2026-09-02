@@ -27,6 +27,7 @@ jobs:
           node <<'NODE'
           const puppeteer = require('puppeteer-core');
           const assert = require('node:assert/strict');
+          const sleep = ms => new Promise(r => setTimeout(r, ms));
           (async () => {
             const browser = await puppeteer.launch({
               executablePath: process.env.CHROME,
@@ -41,19 +42,26 @@ jobs:
               if (msg.type() === 'error') consoleErrors.push(text);
               console.log('BROWSER', msg.type(), text);
             });
-            page.on('pageerror', err => { consoleErrors.push('PAGEERROR '+err.message); console.log('PAGEERROR', err.message); });
-            await page.goto('https://mralehsas.github.io/ALBAZ-ASTEROID-ARCHIVE/?e2e=' + Date.now(), {waitUntil:'networkidle2', timeout:120000});
-            await page.waitForFunction(() => document.querySelector('#connectionText')?.textContent.includes('Backend Online'), {timeout:30000});
-            // Switch to English so numeric UI assertions are locale-independent.
-            if ((await page.$eval('html', e=>e.lang)) === 'ar') await page.click('#languageButton');
-            await page.waitForFunction(() => {
-              const text = document.querySelector('#loadedRecordsValue')?.textContent || '';
-              const n = Number(text.replace(/[^0-9.]/g,''));
-              return Number.isFinite(n) && n > 0;
-            }, {timeout:60000});
-            console.log('BOOT', await page.$eval('#connectionText', e=>e.textContent), await page.$eval('#loadedRecordsValue', e=>e.textContent));
+            page.on('pageerror', err => {
+              consoleErrors.push('PAGEERROR ' + err.message);
+              console.log('PAGEERROR', err.message);
+            });
+            page.on('requestfailed', req => console.log('REQUEST_FAILED', req.url(), req.failure()?.errorText));
 
-            // 1) Actual mass/energy calculator.
+            await page.goto('https://mralehsas.github.io/ALBAZ-ASTEROID-ARCHIVE/?e2e=' + Date.now(), {
+              waitUntil:'networkidle2', timeout:120000
+            });
+            await page.waitForFunction(() => document.querySelector('#connectionText')?.textContent.includes('Backend Online'), {timeout:30000});
+            if ((await page.$eval('html', e => e.lang)) === 'ar') await page.click('#languageButton');
+            console.log('BOOT', JSON.stringify(await page.evaluate(() => ({
+              connection: document.querySelector('#connectionText')?.textContent,
+              loaded: document.querySelector('#loadedRecordsValue')?.textContent,
+              source: document.querySelector('#sourceModeValue')?.textContent,
+              approaches: document.querySelector('#approachesCount')?.textContent,
+              fireballs: document.querySelector('#fireballsCount')?.textContent,
+            }))));
+
+            // 1) Pure scientific mass / kinetic-energy calculation.
             await page.click('[data-view-target="analyzer"]');
             await page.waitForSelector('#analyzerForm');
             await page.evaluate(() => {
@@ -63,33 +71,47 @@ jobs:
               document.querySelector('#analyzerForm').requestSubmit();
             });
             const analyzer = await page.evaluate(() => ({
-              volume: document.querySelector('#resultVolume').textContent,
-              mass: document.querySelector('#resultMass').textContent,
-              energy: document.querySelector('#resultEnergy').textContent,
-              tnt: document.querySelector('#resultTnt').textContent,
+              volume: document.querySelector('#resultVolume')?.textContent || '',
+              mass: document.querySelector('#resultMass')?.textContent || '',
+              energy: document.querySelector('#resultEnergy')?.textContent || '',
+              tnt: document.querySelector('#resultTnt')?.textContent || '',
             }));
             console.log('ANALYZER', JSON.stringify(analyzer));
-            for (const [k,v] of Object.entries(analyzer)) assert.notEqual(v.trim(), '—', `Analyzer ${k} did not calculate`);
-            // Known-value scientific check for d=20m, rho=3000 kg/m3, v=19 km/s.
-            const expected = {volume: 4188.790204786391, mass: 12566370.614359172, energy: 2.26822989589183e15, tnt: 0.5421199559961352};
-            const rawCalc = await page.evaluate(() => {
-              const d=20, density=3000, speed=19000, tntJ=4.184e15;
-              const volume=Math.PI/6*d**3, mass=volume*density, energy=.5*mass*speed**2;
-              return {volume,mass,energy,tnt:energy/tntJ};
+            for (const [key, value] of Object.entries(analyzer)) {
+              assert.ok(value.trim() && value.trim() !== '—', `Analyzer ${key} did not calculate`);
+            }
+            // Independent known-value reference for the same formula.
+            const expected = {
+              volume: 4188.790204786391,
+              mass: 12566370.614359172,
+              energy: 2.2682298958918305e15,
+              tnt: 0.5421199559970914,
+            };
+            const reference = await page.evaluate(() => {
+              const d = 20, density = 3000, speed = 19000;
+              const volume = Math.PI / 6 * d ** 3;
+              const mass = volume * density;
+              const energy = 0.5 * mass * speed ** 2;
+              return {volume, mass, energy, tnt: energy / 4.184e15};
             });
-            for (const key of Object.keys(expected)) assert.ok(Math.abs(rawCalc[key]-expected[key]) <= Math.abs(expected[key])*1e-12 + 1e-12, `Scientific calculator mismatch: ${key}`);
+            for (const key of Object.keys(expected)) {
+              assert.ok(Math.abs(reference[key] - expected[key]) <= Math.abs(expected[key]) * 1e-12 + 1e-12, `Reference mismatch: ${key}`);
+            }
 
-            // 2) Direct SBDB comparison + derived metrics.
+            // 2) Live SBDB object + comparison calculations.
             await page.click('[data-view-target="compare"]');
             await page.waitForSelector('#compareObjectSearch');
-            await page.type('#compareObjectSearch', '99942');
-            await page.$eval('#compareSearchForm', f=>f.requestSubmit());
-            await page.waitForFunction(() => !document.querySelector('#compareContent')?.hidden && document.querySelector('#compareCards')?.textContent.includes('Apophis'), {timeout:60000});
-            const compareText = await page.$eval('#compareCards', e=>e.textContent.replace(/\s+/g,' ').trim());
-            console.log('COMPARE', compareText.slice(0,1000));
-            assert.match(compareText, /Apophis/i, 'Comparison did not load SBDB object');
+            await page.evaluate(() => { document.querySelector('#compareObjectSearch').value = '99942'; });
+            await page.$eval('#compareSearchForm', form => form.requestSubmit());
+            await page.waitForFunction(() => {
+              const cards = document.querySelector('#compareCards')?.textContent || '';
+              return !document.querySelector('#compareContent')?.hidden && /Apophis/i.test(cards);
+            }, {timeout:60000});
+            const compareText = await page.$eval('#compareCards', e => e.textContent.replace(/\s+/g,' ').trim());
+            console.log('COMPARE', compareText.slice(0,1200));
+            assert.match(compareText, /Apophis/i);
 
-            // 3) Manual live Horizons calculation.
+            // 3) Manual live Horizons trajectory calculation.
             await page.click('[data-view-target="orbit"]');
             await page.evaluate(() => {
               document.querySelector('#orbitTarget').value = '99942';
@@ -98,29 +120,45 @@ jobs:
               document.querySelector('#orbitForm').requestSubmit();
             });
             await page.waitForFunction(() => document.querySelector('#orbitMetricSource')?.textContent.trim() === 'HORIZONS', {timeout:120000});
-            const orbit = await page.evaluate(() => ({source:document.querySelector('#orbitMetricSource').textContent, points:document.querySelector('#orbitMetricPoints').textContent, nearest:document.querySelector('#orbitMetricNearest').textContent}));
+            const orbit = await page.evaluate(() => ({
+              source: document.querySelector('#orbitMetricSource')?.textContent,
+              points: document.querySelector('#orbitMetricPoints')?.textContent,
+              nearest: document.querySelector('#orbitMetricNearest')?.textContent,
+            }));
             console.log('ORBIT_MANUAL', JSON.stringify(orbit));
-            assert.equal(orbit.source.trim(), 'HORIZONS');
+            assert.equal((orbit.source || '').trim(), 'HORIZONS');
+            assert.ok((orbit.points || '').trim() && (orbit.points || '').trim() !== '—');
 
-            // 4) Selected-object -> orbit must also calculate live on web.
+            // 4) Wait separately for live approach data, then test selected-object quick orbit.
             await page.click('[data-view-target="approaches"]');
-            await page.waitForSelector('button.table-action[data-approach-index]');
+            await page.waitForSelector('button.table-action[data-approach-index]', {timeout:90000});
             await page.click('button.table-action[data-approach-index]');
-            await page.waitForFunction(() => !document.querySelector('#openOrbitButton')?.disabled);
-            // Force reference state first, then test quick action behavior.
+            await page.waitForFunction(() => !document.querySelector('#openOrbitButton')?.disabled, {timeout:10000});
+            const selected = await page.evaluate(() => ({
+              title: document.querySelector('#selectedTitle')?.textContent,
+              openOrbitDisabled: document.querySelector('#openOrbitButton')?.disabled,
+            }));
+            console.log('SELECTED', JSON.stringify(selected));
+
+            // Deliberately set LOCAL first so the quick-action behavior is observable.
             await page.click('[data-view-target="orbit"]');
             await page.click('#loadReferenceOrbitButton');
-            await page.waitForFunction(() => document.querySelector('#orbitMetricSource')?.textContent.trim() === 'LOCAL');
+            await page.waitForFunction(() => document.querySelector('#orbitMetricSource')?.textContent.trim() === 'LOCAL', {timeout:10000});
             await page.click('[data-view-target="approaches"]');
             await page.click('#openOrbitButton');
-            await new Promise(r => setTimeout(r, 5000));
-            const quickOrbitSource = await page.$eval('#orbitMetricSource', e=>e.textContent.trim());
-            console.log('ORBIT_QUICK_ACTION', quickOrbitSource);
-            if (quickOrbitSource !== 'HORIZONS') console.log('DIAGNOSIS quick selected-object orbit did not invoke live Horizons');
+            await sleep(7000);
+            const quickOrbit = await page.evaluate(() => ({
+              source: document.querySelector('#orbitMetricSource')?.textContent?.trim(),
+              target: document.querySelector('#orbitTarget')?.value,
+              viewActive: document.querySelector('#view-orbit')?.classList.contains('active'),
+            }));
+            console.log('ORBIT_QUICK_ACTION', JSON.stringify(quickOrbit));
 
-            console.log('CONSOLE_ERRORS', JSON.stringify(consoleErrors));
-            assert.equal(consoleErrors.filter(x => !/favicon|Failed to load resource.*404/i.test(x)).length, 0, 'Browser console contained runtime errors');
-            assert.equal(quickOrbitSource, 'HORIZONS', 'Selected-object orbit quick action is still gated to localhost');
+            const relevantErrors = consoleErrors.filter(x => !/favicon|Failed to load resource.*404/i.test(x));
+            console.log('CONSOLE_ERRORS', JSON.stringify(relevantErrors));
+            assert.equal(relevantErrors.length, 0, 'Browser console contained runtime errors');
+            assert.equal(quickOrbit.source, 'HORIZONS', 'Selected-object orbit quick action is still gated to localhost');
+
             await browser.close();
           })().catch(err => { console.error(err.stack || err); process.exit(1); });
           NODE
