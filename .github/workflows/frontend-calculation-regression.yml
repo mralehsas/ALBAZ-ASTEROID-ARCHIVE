@@ -5,10 +5,12 @@ on:
     branches:
       - main
       - fix/frontend-calculation-paths
+      - fix/live-search-update
     paths:
       - 'index.html'
       - 'frontend_calculation_test.py'
       - 'frontend_console_mode_test.py'
+      - 'frontend_search_update_test.py'
       - 'self_test.py'
       - 'deployment_test.py'
       - '.github/workflows/frontend-calculation-regression.yml'
@@ -19,6 +21,7 @@ on:
       - 'index.html'
       - 'frontend_calculation_test.py'
       - 'frontend_console_mode_test.py'
+      - 'frontend_search_update_test.py'
       - 'self_test.py'
       - 'deployment_test.py'
       - '.github/workflows/frontend-calculation-regression.yml'
@@ -37,11 +40,13 @@ jobs:
           python-version: '3.12'
       - name: Frontend calculation regression
         run: python frontend_calculation_test.py
-      - name: PythonAnywhere console-mode regression
+      - name: PythonAnywhere console/live-refresh regression
         run: python frontend_console_mode_test.py
+      - name: Live search/update regression
+        run: python frontend_search_update_test.py
       - name: Scientific self-test
         run: python self_test.py
       - name: Deployment regression suite
         run: python deployment_test.py
       - name: Compile Python modules
-        run: python -m compileall -q api_core.py runtime_paths.py database.py horizons_engine.py jpl_client.py update_engine.py server.py pythonanywhere_wsgi.py self_test.py deployment_test.py frontend_calculation_test.py frontend_console_mode_test.py
+        run: python -m compileall -q api_core.py runtime_paths.py database.py horizons_engine.py jpl_client.py update_engine.py server.py pythonanywhere_wsgi.py self_test.py deployment_test.py frontend_calculation_test.py frontend_console_mode_test.py frontend_search_update_test.py
