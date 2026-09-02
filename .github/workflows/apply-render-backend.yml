@@ -1,0 +1,40 @@
+name: Apply Render backend patch
+
+on:
+  push:
+    branches:
+      - feature/render-web-backend
+    paths:
+      - .github/render-existing.patch
+
+permissions:
+  contents: write
+
+jobs:
+  apply-patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/render-web-backend
+          fetch-depth: 0
+
+      - name: Apply deterministic patch
+        run: |
+          git apply --check .github/render-existing.patch
+          git apply .github/render-existing.patch
+
+      - name: Verify Python and deployment contracts
+        run: |
+          python -m compileall -q runtime_paths.py database.py horizons_engine.py update_engine.py update_data.py jpl_client.py server.py self_test.py deployment_test.py
+          python self_test.py
+          python deployment_test.py
+
+      - name: Commit patched existing files
+        run: |
+          git config user.name "ALBAZ Render Patch Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add database.py horizons_engine.py update_engine.py server.py index.html
+          git commit -m "feat: apply Render backend integration"
+          git push origin HEAD:feature/render-web-backend
