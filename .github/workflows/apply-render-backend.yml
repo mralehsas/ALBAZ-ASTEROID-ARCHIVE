@@ -6,6 +6,7 @@ on:
       - feature/render-web-backend
     paths:
       - .github/render-existing.patch
+      - .github/workflows/apply-render-backend.yml
 
 permissions:
   contents: write
