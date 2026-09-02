@@ -1,0 +1,148 @@
+name: Production smoke
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'index.html'
+      - 'web-config.js'
+      - '.github/workflows/production-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  production-browser-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Wait for GitHub Pages deployment
+        shell: python
+        run: |
+          import time
+          import urllib.request
+
+          base = 'https://mralehsas.github.io/ALBAZ-ASTEROID-ARCHIVE/'
+          deadline = time.time() + 360
+          last = ''
+          while time.time() < deadline:
+              url = base + '?deploy_probe=' + str(int(time.time()))
+              try:
+                  req = urllib.request.Request(url, headers={'Cache-Control':'no-cache','User-Agent':'ALBAZ-Production-Smoke/1.0'})
+                  with urllib.request.urlopen(req, timeout=30) as r:
+                      last = r.read().decode('utf-8', errors='replace')
+                  if (
+                      'id="analyzerDiameter" type="number" min="0.01" step="0.01" value="20"' in last
+                      and 'if (backendApiAvailable()) await loadHorizonsTrack();' in last
+                  ):
+                      print('GitHub Pages contains the repaired calculation paths.')
+                      raise SystemExit(0)
+              except Exception as exc:
+                  print('Pages probe:', type(exc).__name__, str(exc)[:300])
+              time.sleep(10)
+          raise SystemExit('Timed out waiting for repaired GitHub Pages deployment')
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser driver library
+        run: npm install --no-save puppeteer-core@24
+      - name: Exercise production calculator and live orbit
+        shell: bash
+        run: |
+          CHROME="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || true)"
+          test -n "$CHROME"
+          export CHROME
+          node <<'NODE'
+          const puppeteer = require('puppeteer-core');
+          const assert = require('node:assert/strict');
+          const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+          (async () => {
+            const browser = await puppeteer.launch({
+              executablePath: process.env.CHROME,
+              headless: true,
+              args: ['--no-sandbox', '--disable-dev-shm-usage']
+            });
+            const page = await browser.newPage();
+            page.setDefaultTimeout(180000);
+            const consoleErrors = [];
+            const horizonRequests = [];
+
+            page.on('console', msg => {
+              if (msg.type() === 'error') consoleErrors.push(msg.text());
+              console.log('BROWSER', msg.type(), msg.text());
+            });
+            page.on('pageerror', err => consoleErrors.push('PAGEERROR ' + err.message));
+            page.on('request', req => {
+              if (req.url().includes('/api/horizons/track')) {
+                horizonRequests.push(req.url());
+                console.log('HORIZONS_REQUEST', req.url());
+              }
+            });
+            page.on('response', res => {
+              if (res.url().includes('/api/horizons/track')) console.log('HORIZONS_RESPONSE', res.status(), res.url());
+            });
+
+            await page.goto('https://mralehsas.github.io/ALBAZ-ASTEROID-ARCHIVE/?smoke=' + Date.now(), {
+              waitUntil: 'networkidle2', timeout: 120000
+            });
+            await page.waitForFunction(() => document.querySelector('#connectionText')?.textContent.includes('Backend Online'), {timeout:30000});
+            await page.waitForFunction(() => document.querySelector('#loadingOverlay')?.hidden === true, {timeout:120000});
+
+            await page.click('[data-view-target="analyzer"]');
+            const validity = await page.$eval('#analyzerForm', form => ({
+              valid: form.checkValidity(),
+              diameter: document.querySelector('#analyzerDiameter').value,
+              step: document.querySelector('#analyzerDiameter').step,
+            }));
+            console.log('ANALYZER_VALIDITY', JSON.stringify(validity));
+            assert.equal(validity.valid, true, 'Analyzer form must accept its default values');
+            assert.equal(validity.step, '0.01');
+            await page.click('#analyzerForm button[type="submit"]');
+            const analyzer = await page.evaluate(() => ({
+              volume: document.querySelector('#resultVolume')?.textContent?.trim(),
+              mass: document.querySelector('#resultMass')?.textContent?.trim(),
+              energy: document.querySelector('#resultEnergy')?.textContent?.trim(),
+              tnt: document.querySelector('#resultTnt')?.textContent?.trim(),
+            }));
+            console.log('ANALYZER_RESULT', JSON.stringify(analyzer));
+            for (const [key, value] of Object.entries(analyzer)) {
+              assert.ok(value && value !== '—', `Analyzer ${key} did not render`);
+            }
+
+            await page.click('[data-view-target="approaches"]');
+            await page.waitForSelector('button.table-action[data-approach-index]', {timeout:30000});
+            await page.click('button.table-action[data-approach-index]');
+            await page.waitForFunction(() => !document.querySelector('#openOrbitButton')?.disabled, {timeout:10000});
+
+            await page.click('[data-view-target="orbit"]');
+            await page.click('#loadReferenceOrbitButton');
+            await page.waitForFunction(() => document.querySelector('#orbitMetricSource')?.textContent.trim() === 'LOCAL', {timeout:10000});
+            await page.click('[data-view-target="approaches"]');
+            const before = horizonRequests.length;
+            await page.click('#openOrbitButton');
+            await page.waitForFunction(() => document.querySelector('#orbitMetricSource')?.textContent.trim() === 'HORIZONS', {timeout:120000});
+            await sleep(500);
+            const quick = await page.evaluate(() => ({
+              source: document.querySelector('#orbitMetricSource')?.textContent?.trim(),
+              target: document.querySelector('#orbitTarget')?.value,
+              points: document.querySelector('#orbitMetricPoints')?.textContent?.trim(),
+              active: document.querySelector('#view-orbit')?.classList.contains('active')
+            }));
+            console.log('QUICK_ORBIT_RESULT', JSON.stringify(quick));
+            assert.ok(horizonRequests.length > before, 'Quick orbit must issue a live Horizons request');
+            assert.equal(quick.source, 'HORIZONS');
+            assert.equal(quick.active, true);
+            assert.ok(quick.points && quick.points !== '—');
+
+            const relevantErrors = consoleErrors.filter(x => !/favicon|Failed to load resource.*404/i.test(x));
+            console.log('CONSOLE_ERRORS', JSON.stringify(relevantErrors));
+            assert.deepEqual(relevantErrors, []);
+            await browser.close();
+          })().catch(err => { console.error(err.stack || err); process.exit(1); });
+          NODE
