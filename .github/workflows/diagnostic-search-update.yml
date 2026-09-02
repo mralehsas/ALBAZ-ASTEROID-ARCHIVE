@@ -24,7 +24,7 @@ jobs:
         run: python patch_live_search_update.py
       - name: Live search/update regression
         run: python frontend_search_update_test.py
-      - name: Console-mode regression
+      - name: Console/live-refresh policy regression
         run: python frontend_console_mode_test.py
       - name: Calculation regression
         run: python frontend_calculation_test.py
