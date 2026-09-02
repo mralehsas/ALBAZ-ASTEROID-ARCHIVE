@@ -1,0 +1,25 @@
+name: Frontend calculation regression
+
+on:
+  push:
+    branches:
+      - fix/frontend-calculation-paths
+    paths:
+      - 'index.html'
+      - 'frontend_calculation_test.py'
+      - '.github/workflows/frontend-calculation-regression.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Frontend calculation regression
+        run: python frontend_calculation_test.py
