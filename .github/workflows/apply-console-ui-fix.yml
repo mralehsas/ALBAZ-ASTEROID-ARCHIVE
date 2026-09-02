@@ -1,0 +1,91 @@
+name: Apply PythonAnywhere console UI fix
+
+on:
+  push:
+    branches:
+      - fix/pythonanywhere-console-ui
+    paths:
+      - .github/workflows/apply-console-ui-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/pythonanywhere-console-ui
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Patch console-only frontend behavior
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+
+          replacements = [
+              (
+                  "engineLocalOnly: 'يلزم تشغيل البرنامج بواسطة server.py لاستخدام محرك التحديث.', updateStarted:",
+                  "engineLocalOnly: 'يلزم تشغيل البرنامج بواسطة server.py لاستخدام محرك التحديث.', engineConsoleOnly: 'التحديث الشامل يُدار من وحدة Bash في PythonAnywhere، بينما تبقى استعلامات NASA/JPL الحية متاحة من الموقع.', updateStarted:",
+              ),
+              (
+                  "engineLocalOnly: 'Run the application through server.py to use the update engine.', updateStarted:",
+                  "engineLocalOnly: 'Run the application through server.py to use the update engine.', engineConsoleOnly: 'Full archive refresh is administered from the PythonAnywhere Bash console while live NASA/JPL queries remain available from the site.', updateStarted:",
+              ),
+              (
+                  "? { idle:'جاهز', running:'قيد التنفيذ', success:'ناجح', failed:'فشل', cancelled:'ملغى' }",
+                  "? { idle:'جاهز', running:'قيد التنفيذ', success:'ناجح', failed:'فشل', cancelled:'ملغى', console_only:'إدارة عبر Console' }",
+              ),
+              (
+                  ": { idle:'Ready', running:'Running', success:'Success', failed:'Failed', cancelled:'Cancelled' };",
+                  ": { idle:'Ready', running:'Running', success:'Success', failed:'Failed', cancelled:'Cancelled', console_only:'Console administered' };",
+              ),
+              (
+                  "const status = snapshot.status || (running ? 'running' : 'idle');\n    const percent",
+                  "const status = snapshot.status || (running ? 'running' : 'idle');\n    const consoleOnly = status === 'console_only';\n    const percent",
+              ),
+              (
+                  "const msg = $('#engineMessage'); if (msg) msg.textContent = snapshot.message || t('engineReadyMessage');",
+                  "const msg = $('#engineMessage'); if (msg) msg.textContent = consoleOnly ? t('engineConsoleOnly') : (snapshot.message || t('engineReadyMessage'));",
+              ),
+              (
+                  "const start = $('#startNasaUpdateButton'); if (start) start.disabled = running || !isLocalServer();",
+                  "const start = $('#startNasaUpdateButton'); if (start) start.disabled = running || consoleOnly || !isLocalServer();",
+              ),
+              (
+                  "const entries = Array.isArray(snapshot.logs) ? snapshot.logs.slice(-80).reverse() : [];\n      log.innerHTML",
+                  "const entries = Array.isArray(snapshot.logs) ? snapshot.logs.slice(-80).reverse() : [];\n      const emptyEngineMessage = consoleOnly ? t('engineConsoleOnly') : (isLocalServer() ? t('engineReadyMessage') : t('engineLocalOnly'));\n      log.innerHTML",
+              ),
+              (
+                  "escapeHtml(isLocalServer() ? t('engineReadyMessage') : t('engineLocalOnly'))",
+                  "escapeHtml(emptyEngineMessage)",
+              ),
+              (
+                  "renderEngineState({ status:'idle', running:false, percent:0, message: isLocalServer() ? t('engineReadyMessage') : t('engineLocalOnly'), logs:[] });",
+                  "renderEngineState({ status: (!isLocalServer() && backendApiAvailable()) ? 'console_only' : 'idle', running:false, percent:0, message: isLocalServer() ? t('engineReadyMessage') : (backendApiAvailable() ? t('engineConsoleOnly') : t('engineLocalOnly')), logs:[] });",
+              ),
+          ]
+
+          for old, new in replacements:
+              if old not in s:
+                  raise SystemExit(f'Expected source fragment missing: {old[:100]}')
+              s = s.replace(old, new)
+
+          p.write_text(s, encoding='utf-8')
+      - name: Verify console-only UI regression
+        run: python frontend_console_mode_test.py
+      - name: Verify scientific self-test
+        run: python self_test.py
+      - name: Verify deployment suite
+        run: python deployment_test.py
+      - name: Commit UI fix only
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "fix: present PythonAnywhere console-only update mode"
+          git push origin HEAD:fix/pythonanywhere-console-ui
