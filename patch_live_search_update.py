@@ -7,8 +7,16 @@ original = text
 
 replacements = [
     (
-        """      isLocalServer()\n        ? endpoint('object', { sstr: value })\n        : endpoint('sbdb', { sstr: value, 'phys-par': 'true', 'full-prec': 'true' })""",
-        """      backendApiAvailable()\n        ? endpoint('object', { sstr: value, refresh: '1' })\n        : endpoint('sbdb', { sstr: value, 'phys-par': 'true', 'full-prec': 'true' })""",
+        "const payload = await fetchJson(isLocalServer() ? endpoint('object', { sstr: value }) : endpoint('sbdb', { sstr: value, 'phys-par': 'true', 'full-prec': 'true' }));",
+        "const payload = await fetchJson(backendApiAvailable() ? endpoint('object', { sstr: value, refresh: '1' }) : endpoint('sbdb', { sstr: value, 'phys-par': 'true', 'full-prec': 'true' }));",
+    ),
+    (
+        "record.profile = await fetchJson(isLocalServer() ? endpoint('object', { sstr: query }) : endpoint('sbdb', { sstr: query, 'phys-par': 'true', 'full-prec': 'true' }));",
+        "record.profile = await fetchJson(backendApiAvailable() ? endpoint('object', { sstr: query, refresh: '1' }) : endpoint('sbdb', { sstr: query, 'phys-par': 'true', 'full-prec': 'true' }));",
+    ),
+    (
+        "const profile = await fetchJson(isLocalServer() ? endpoint('object', { sstr: value }) : endpoint('sbdb', { sstr: value, 'phys-par': 'true', 'full-prec': 'true' }));",
+        "const profile = await fetchJson(backendApiAvailable() ? endpoint('object', { sstr: value, refresh: '1' }) : endpoint('sbdb', { sstr: value, 'phys-par': 'true', 'full-prec': 'true' }));",
     ),
     (
         "profileLimit: 'الملفات العلمية ذات الأولوية', includeProfiles: 'تحديث ملفات SBDB العلمية للأجرام الأقرب', startNasaUpdate: 'بدء تحديث NASA/JPL',",
@@ -20,11 +28,30 @@ replacements = [
     ),
     (
         "const start = $('#startNasaUpdateButton'); if (start) start.disabled = running || consoleOnly || !isLocalServer();",
-        """const start = $('#startNasaUpdateButton');\n    if (start) {\n      start.disabled = running || !backendApiAvailable();\n      const startLabel = start.querySelector('b');\n      if (startLabel) startLabel.textContent = consoleOnly ? t('refreshLiveNasa') : t('startNasaUpdate');\n    }""",
+        """const start = $('#startNasaUpdateButton');
+    if (start) {
+      start.disabled = running || !backendApiAvailable();
+      const startLabel = start.querySelector('b');
+      if (startLabel) startLabel.textContent = consoleOnly ? t('refreshLiveNasa') : t('startNasaUpdate');
+    }""",
     ),
     (
-        """  async function startNasaUpdate(event) {\n    event?.preventDefault();\n    if (!backendApiAvailable()) { toast(t('engineLocalOnly'), 'error'); return; }\n    try {\n      const payload = await postJson(endpoint('updateStart'), engineConfig());""",
-        """  async function startNasaUpdate(event) {\n    event?.preventDefault();\n    if (!backendApiAvailable()) { toast(t('engineLocalOnly'), 'error'); return; }\n    const consoleOnly = state.engineState?.status === 'console_only';\n    if (consoleOnly && !isLocalServer()) {\n      await loadAllData();\n      renderEngineState(state.engineState || state.health?.update || { status:'console_only', running:false, percent:0, stage:'LIVE', logs:[] });\n      return;\n    }\n    try {\n      const payload = await postJson(endpoint('updateStart'), engineConfig());""",
+        """  async function startNasaUpdate(event) {
+    event?.preventDefault();
+    if (!backendApiAvailable()) { toast(t('engineLocalOnly'), 'error'); return; }
+    try {
+      const payload = await postJson(endpoint('updateStart'), engineConfig());""",
+        """  async function startNasaUpdate(event) {
+    event?.preventDefault();
+    if (!backendApiAvailable()) { toast(t('engineLocalOnly'), 'error'); return; }
+    const consoleOnly = state.engineState?.status === 'console_only';
+    if (consoleOnly && !isLocalServer()) {
+      await loadAllData();
+      renderEngineState(state.engineState || state.health?.update || { status:'console_only', running:false, percent:0, stage:'LIVE', logs:[] });
+      return;
+    }
+    try {
+      const payload = await postJson(endpoint('updateStart'), engineConfig());""",
     ),
 ]
 
