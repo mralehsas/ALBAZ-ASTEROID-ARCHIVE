@@ -1760,7 +1760,7 @@ window.AA_LIVE_CACHE = window.AA_LIVE_CACHE || null;
     refreshHistory: 'تحديث السجل', runNumber: 'العملية', startedAt: 'بدأت', finishedAt: 'انتهت', status: 'الحالة', trigger: 'المشغّل',
     resultCounts: 'النتيجة', error: 'الخطأ', cachedProfiles: 'الملفات العلمية المحلية', localScientificFile: 'محفوظ محليًا',
     publishedValue: 'منشور في SBDB', derivedEstimate: 'تقدير محسوب', massEstimate: 'الكتلة التقديرية', densityAssumption: 'الكثافة المفترضة',
-    engineLocalOnly: 'يلزم تشغيل البرنامج بواسطة server.py لاستخدام محرك التحديث.', updateStarted: 'بدأ تحديث NASA/JPL.',
+    engineLocalOnly: 'يلزم تشغيل البرنامج بواسطة server.py لاستخدام محرك التحديث.', engineConsoleOnly: 'التحديث الشامل يُدار من وحدة Bash في PythonAnywhere، بينما تبقى استعلامات NASA/JPL الحية متاحة من الموقع.', updateStarted: 'بدأ تحديث NASA/JPL.',
     updateCompleted: 'اكتمل تحديث قاعدة NASA/JPL.', updateCancelled: 'أُلغي التحديث مع الحفاظ على آخر قاعدة سليمة.', cancelRequested: 'تم إرسال طلب الإلغاء.',
     refreshData: 'تحميل السجل'
   });
@@ -1777,7 +1777,7 @@ window.AA_LIVE_CACHE = window.AA_LIVE_CACHE || null;
     refreshHistory: 'Refresh history', runNumber: 'Run', startedAt: 'Started', finishedAt: 'Finished', status: 'Status', trigger: 'Trigger',
     resultCounts: 'Result', error: 'Error', cachedProfiles: 'Cached scientific profiles', localScientificFile: 'Stored locally',
     publishedValue: 'Published in SBDB', derivedEstimate: 'Calculated estimate', massEstimate: 'Estimated mass', densityAssumption: 'Assumed density',
-    engineLocalOnly: 'Run the application through server.py to use the update engine.', updateStarted: 'NASA/JPL update started.',
+    engineLocalOnly: 'Run the application through server.py to use the update engine.', engineConsoleOnly: 'Full archive refresh is administered from the PythonAnywhere Bash console while live NASA/JPL queries remain available from the site.', updateStarted: 'NASA/JPL update started.',
     updateCompleted: 'NASA/JPL database update completed.', updateCancelled: 'Update cancelled; the last valid database was retained.', cancelRequested: 'Cancellation requested.',
     refreshData: 'Load register'
   });
@@ -4645,8 +4645,8 @@ window.AA_LIVE_CACHE = window.AA_LIVE_CACHE || null;
   function statusLabel(status) {
     const ar = state.lang === 'ar';
     const labels = ar
-      ? { idle:'جاهز', running:'قيد التنفيذ', success:'ناجح', failed:'فشل', cancelled:'ملغى' }
-      : { idle:'Ready', running:'Running', success:'Success', failed:'Failed', cancelled:'Cancelled' };
+      ? { idle:'جاهز', running:'قيد التنفيذ', success:'ناجح', failed:'فشل', cancelled:'ملغى', console_only:'إدارة عبر Console' }
+      : { idle:'Ready', running:'Running', success:'Success', failed:'Failed', cancelled:'Cancelled', console_only:'Console administered' };
     return labels[status] || status || '—';
   }
 
@@ -4654,6 +4654,7 @@ window.AA_LIVE_CACHE = window.AA_LIVE_CACHE || null;
     state.engineState = snapshot;
     const running = Boolean(snapshot.running);
     const status = snapshot.status || (running ? 'running' : 'idle');
+    const consoleOnly = status === 'console_only';
     const percent = Math.max(0, Math.min(100, Number(snapshot.percent) || 0));
     const badge = $('#engineStateBadge');
     if (badge) {
@@ -4663,14 +4664,15 @@ window.AA_LIVE_CACHE = window.AA_LIVE_CACHE || null;
     const fill = $('#engineProgressFill'); if (fill) fill.style.width = `${percent}%`;
     const pct = $('#enginePercent'); if (pct) pct.textContent = `${formatNumber(percent, 0)}%`;
     const stage = $('#engineStage'); if (stage) stage.textContent = String(snapshot.stage || 'IDLE').toUpperCase();
-    const msg = $('#engineMessage'); if (msg) msg.textContent = snapshot.message || t('engineReadyMessage');
+    const msg = $('#engineMessage'); if (msg) msg.textContent = consoleOnly ? t('engineConsoleOnly') : (snapshot.message || t('engineReadyMessage'));
     const title = $('#engineProgressTitle'); if (title) title.textContent = running ? (state.lang === 'ar' ? 'التحديث قيد التنفيذ' : 'Update in progress') : statusLabel(status);
-    const start = $('#startNasaUpdateButton'); if (start) start.disabled = running || !isLocalServer();
+    const start = $('#startNasaUpdateButton'); if (start) start.disabled = running || consoleOnly || !isLocalServer();
     const cancel = $('#cancelNasaUpdateButton'); if (cancel) cancel.disabled = !running;
     const log = $('#engineLog');
     if (log) {
       const entries = Array.isArray(snapshot.logs) ? snapshot.logs.slice(-80).reverse() : [];
-      log.innerHTML = entries.length ? entries.map(item => `<div class="engine-log-row ${item.error ? 'error' : item.warning ? 'warning' : ''}"><time>${escapeHtml(String(item.time || '').replace('T',' ').replace('+00:00','Z'))}</time><span>${escapeHtml(item.stage || '')}</span><p>${escapeHtml(item.message || '')}</p><b>${formatNumber(item.percent,0)}%</b></div>`).join('') : `<div class="engine-log-empty">${escapeHtml(isLocalServer() ? t('engineReadyMessage') : t('engineLocalOnly'))}</div>`;
+      const emptyEngineMessage = consoleOnly ? t('engineConsoleOnly') : (isLocalServer() ? t('engineReadyMessage') : t('engineLocalOnly'));
+      log.innerHTML = entries.length ? entries.map(item => `<div class="engine-log-row ${item.error ? 'error' : item.warning ? 'warning' : ''}"><time>${escapeHtml(String(item.time || '').replace('T',' ').replace('+00:00','Z'))}</time><span>${escapeHtml(item.stage || '')}</span><p>${escapeHtml(item.message || '')}</p><b>${formatNumber(item.percent,0)}%</b></div>`).join('') : `<div class="engine-log-empty">${escapeHtml(emptyEngineMessage)}</div>`;
     }
   }
 
@@ -5148,7 +5150,7 @@ window.AA_LIVE_CACHE = window.AA_LIVE_CACHE || null;
     setInterval(updateClock, 1000);
     applyLanguage();
     loadReferenceOrbit(false);
-    renderEngineState({ status:'idle', running:false, percent:0, message: isLocalServer() ? t('engineReadyMessage') : t('engineLocalOnly'), logs:[] });
+    renderEngineState({ status: (!isLocalServer() && backendApiAvailable()) ? 'console_only' : 'idle', running:false, percent:0, message: isLocalServer() ? t('engineReadyMessage') : (backendApiAvailable() ? t('engineConsoleOnly') : t('engineLocalOnly')), logs:[] });
     await loadAllData({ announce: false });
     await refreshNasaEngine();
     const requestedView = new URLSearchParams(location.search).get('view');
