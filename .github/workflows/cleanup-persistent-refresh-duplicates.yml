@@ -1,0 +1,48 @@
+name: Cleanup persistent refresh duplicates
+
+on:
+  push:
+    branches:
+      - fix/persistent-cloud-refresh
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Remove duplicate persisted-refresh implementation
+        run: python cleanup_persistent_refresh_duplicates.py
+      - name: Persisted cloud refresh regression
+        run: python cloud_persistent_refresh_test.py
+      - name: Search/update regression
+        run: python frontend_search_update_test.py
+      - name: Console-mode regression
+        run: python frontend_console_mode_test.py
+      - name: Calculation regression
+        run: python frontend_calculation_test.py
+      - name: Scientific self-test
+        run: python self_test.py
+      - name: Deployment regression suite
+        run: python deployment_test.py
+      - name: Compile Python modules
+        run: python -m compileall -q api_core.py runtime_paths.py database.py horizons_engine.py jpl_client.py update_engine.py server.py pythonanywhere_wsgi.py cloud_persistent_refresh_test.py
+      - name: Commit cleanup if needed
+        shell: bash
+        run: |
+          if git diff --quiet -- api_core.py; then
+            echo "api_core.py already clean"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add api_core.py
+          git commit -m "fix: deduplicate persisted cloud refresh implementation"
+          git push origin HEAD:fix/persistent-cloud-refresh
