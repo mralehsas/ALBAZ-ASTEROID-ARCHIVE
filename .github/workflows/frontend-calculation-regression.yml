@@ -9,8 +9,14 @@ on:
       - fix/persistent-cloud-refresh
       - fix/pythonanywhere-sqlite-safety
       - fix/pythonanywhere-sqlite-startup-lock-v2
+      - seo/search-indexing-fix
     paths:
       - 'index.html'
+      - 'web-config.js'
+      - 'robots.txt'
+      - 'sitemap.xml'
+      - 'README.md'
+      - 'seo_contract_test.py'
       - 'api_core.py'
       - 'cloud_sqlite.py'
       - 'pythonanywhere_wsgi.py'
@@ -29,6 +35,11 @@ on:
       - main
     paths:
       - 'index.html'
+      - 'web-config.js'
+      - 'robots.txt'
+      - 'sitemap.xml'
+      - 'README.md'
+      - 'seo_contract_test.py'
       - 'api_core.py'
       - 'cloud_sqlite.py'
       - 'pythonanywhere_wsgi.py'
@@ -55,6 +66,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: SEO indexing contract
+        run: python seo_contract_test.py
       - name: PythonAnywhere SQLite safety regression
         run: python cloud_sqlite_test.py
       - name: PythonAnywhere live-peer SQLite regression
@@ -72,4 +85,4 @@ jobs:
       - name: Deployment regression suite
         run: python deployment_test.py
       - name: Compile Python modules
-        run: python -m compileall -q api_core.py runtime_paths.py database.py cloud_sqlite.py horizons_engine.py jpl_client.py update_engine.py update_data.py pythonanywhere_update.py server.py pythonanywhere_wsgi.py self_test.py deployment_test.py cloud_sqlite_test.py cloud_sqlite_lock_regression_test.py cloud_persistent_refresh_test.py frontend_calculation_test.py frontend_console_mode_test.py frontend_search_update_test.py
+        run: python -m compileall -q api_core.py runtime_paths.py database.py cloud_sqlite.py horizons_engine.py jpl_client.py update_engine.py update_data.py pythonanywhere_update.py server.py pythonanywhere_wsgi.py self_test.py deployment_test.py cloud_sqlite_test.py cloud_sqlite_lock_regression_test.py cloud_persistent_refresh_test.py frontend_calculation_test.py frontend_console_mode_test.py frontend_search_update_test.py seo_contract_test.py
