@@ -1,0 +1,65 @@
+name: Notify IndexNow
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'index.html'
+      - 'web-config.js'
+      - 'robots.txt'
+      - 'sitemap.xml'
+      - 'README.md'
+      - '6ddad72b13399ce47f5107fe9d1f9aa2.txt'
+      - '.github/workflows/indexnow.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  notify-indexnow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Wait for GitHub Pages verification key
+        shell: bash
+        run: |
+          set -euo pipefail
+          KEY='6ddad72b13399ce47f5107fe9d1f9aa2'
+          KEY_URL='https://mralehsas.github.io/ALBAZ-ASTEROID-ARCHIVE/6ddad72b13399ce47f5107fe9d1f9aa2.txt'
+
+          for attempt in $(seq 1 36); do
+            live_key="$(curl --silent --show-error --location --fail "$KEY_URL" 2>/dev/null || true)"
+            if [ "$live_key" = "$KEY" ]; then
+              echo "IndexNow verification key is live."
+              exit 0
+            fi
+            echo "Waiting for GitHub Pages deployment ($attempt/36)..."
+            sleep 10
+          done
+
+          echo "IndexNow verification key did not become available in time." >&2
+          exit 1
+
+      - name: Submit canonical URL to IndexNow
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --silent --show-error --location --fail-with-body \
+            --retry 3 --retry-delay 3 \
+            --request POST 'https://api.indexnow.org/indexnow' \
+            --header 'Content-Type: application/json; charset=utf-8' \
+            --data-binary @- <<'JSON'
+          {
+            "host": "mralehsas.github.io",
+            "key": "6ddad72b13399ce47f5107fe9d1f9aa2",
+            "keyLocation": "https://mralehsas.github.io/ALBAZ-ASTEROID-ARCHIVE/6ddad72b13399ce47f5107fe9d1f9aa2.txt",
+            "urlList": [
+              "https://mralehsas.github.io/ALBAZ-ASTEROID-ARCHIVE/"
+            ]
+          }
+          JSON
+
+          echo
+          echo "IndexNow submission completed for the canonical application URL."
