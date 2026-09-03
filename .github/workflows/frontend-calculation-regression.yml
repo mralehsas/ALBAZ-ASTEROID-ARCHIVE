@@ -8,6 +8,7 @@ on:
       - fix/live-search-update
       - fix/persistent-cloud-refresh
       - fix/pythonanywhere-sqlite-safety
+      - fix/pythonanywhere-sqlite-startup-lock-v2
     paths:
       - 'index.html'
       - 'api_core.py'
@@ -15,6 +16,7 @@ on:
       - 'pythonanywhere_wsgi.py'
       - 'pythonanywhere_update.py'
       - 'cloud_sqlite_test.py'
+      - 'cloud_sqlite_lock_regression_test.py'
       - 'cloud_persistent_refresh_test.py'
       - 'frontend_calculation_test.py'
       - 'frontend_console_mode_test.py'
@@ -32,6 +34,7 @@ on:
       - 'pythonanywhere_wsgi.py'
       - 'pythonanywhere_update.py'
       - 'cloud_sqlite_test.py'
+      - 'cloud_sqlite_lock_regression_test.py'
       - 'cloud_persistent_refresh_test.py'
       - 'frontend_calculation_test.py'
       - 'frontend_console_mode_test.py'
@@ -54,6 +57,8 @@ jobs:
           python-version: '3.12'
       - name: PythonAnywhere SQLite safety regression
         run: python cloud_sqlite_test.py
+      - name: PythonAnywhere live-peer SQLite regression
+        run: python cloud_sqlite_lock_regression_test.py
       - name: Persisted cloud refresh regression
         run: python cloud_persistent_refresh_test.py
       - name: Frontend calculation regression
@@ -67,4 +72,4 @@ jobs:
       - name: Deployment regression suite
         run: python deployment_test.py
       - name: Compile Python modules
-        run: python -m compileall -q api_core.py runtime_paths.py database.py cloud_sqlite.py horizons_engine.py jpl_client.py update_engine.py update_data.py pythonanywhere_update.py server.py pythonanywhere_wsgi.py self_test.py deployment_test.py cloud_sqlite_test.py cloud_persistent_refresh_test.py frontend_calculation_test.py frontend_console_mode_test.py frontend_search_update_test.py
+        run: python -m compileall -q api_core.py runtime_paths.py database.py cloud_sqlite.py horizons_engine.py jpl_client.py update_engine.py update_data.py pythonanywhere_update.py server.py pythonanywhere_wsgi.py self_test.py deployment_test.py cloud_sqlite_test.py cloud_sqlite_lock_regression_test.py cloud_persistent_refresh_test.py frontend_calculation_test.py frontend_console_mode_test.py frontend_search_update_test.py

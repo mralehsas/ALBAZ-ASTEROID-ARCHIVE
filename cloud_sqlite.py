@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """PythonAnywhere-specific SQLite safety helpers.
 
-The project keeps WAL mode for local desktop use. PythonAnywhere stores SQLite on
-cloud-backed filesystem storage, so the web/CLI deployment uses DELETE journaling
-and one advisory update lock shared by the Bash updater and web refresh path.
+PythonAnywhere may keep multiple processes connected to the same SQLite file. A
+connection must therefore never switch journal_mode as part of ordinary request
+startup, because changing journal mode requires an exclusive database lock. The
+cloud adapter preserves the database's existing journal mode, applies conservative
+connection pragmas, and serializes archive-changing update jobs with one advisory
+lock shared by the Bash updater and web refresh path.
 """
 from __future__ import annotations
 
@@ -24,7 +27,9 @@ def cloud_connect(path: Path = DB_PATH) -> sqlite3.Connection:
     db = sqlite3.connect(path, timeout=30)
     db.row_factory = sqlite3.Row
     db.execute("PRAGMA busy_timeout=30000")
-    db.execute("PRAGMA journal_mode=DELETE")
+    # Do not change journal_mode here. Switching WAL/DELETE requires an exclusive
+    # lock and can fail during web-worker startup while another process still has
+    # the database open. Preserve the file's established mode instead.
     db.execute("PRAGMA synchronous=FULL")
     db.execute("PRAGMA foreign_keys=ON")
     return db
