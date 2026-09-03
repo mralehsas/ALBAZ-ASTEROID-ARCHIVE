@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import time
+import threading
 import urllib.error
 import urllib.parse
 from dataclasses import dataclass
@@ -23,7 +24,7 @@ from database import (
 )
 from horizons_engine import get_orbit_track, test_nasa_services
 from jpl_client import ensure_signature
-from update_engine import fetch_json
+from update_engine import fetch_json, run_update
 
 VERSION: Final[str] = "0.7.2"
 PAGES_ORIGIN: Final[str] = "https://mralehsas.github.io"
@@ -52,6 +53,8 @@ LOCAL_DATASETS: Final[dict[str, str]] = {
 }
 CACHE_TTL_SECONDS: Final[int] = 300
 CACHE: dict[str, tuple[float, bytes, str]] = {}
+LIVE_REFRESH_COOLDOWN_SECONDS: Final[int] = 300
+LIVE_REFRESH_LOCK = threading.Lock()
 
 
 @dataclass(frozen=True)
@@ -301,7 +304,118 @@ def handle_get(
     return error_response(HTTPStatus.NOT_FOUND, "Unknown API route", path)
 
 
+
+def _bounded_live_refresh_config(payload: dict[str, Any]) -> dict[str, Any]:
+    def bounded_int(key: str, default: int, minimum: int, maximum: int) -> int:
+        try:
+            value = int(float(payload.get(key, default)))
+        except (TypeError, ValueError):
+            value = default
+        return max(minimum, min(maximum, value))
+
+    def bounded_float(key: str, default: float, minimum: float, maximum: float) -> float:
+        try:
+            value = float(payload.get(key, default))
+        except (TypeError, ValueError):
+            value = default
+        return max(minimum, min(maximum, value))
+
+    return {
+        "days": bounded_int("days", 365, 1, 365),
+        "distance_ld": bounded_float("distance_ld", 10.0, 0.1, 10.0),
+        "approach_limit": bounded_int("approach_limit", 2000, 1, 2000),
+        "fireball_limit": bounded_int("fireball_limit", 2000, 1, 2000),
+        # Public web refresh is intentionally limited to the three core datasets.
+        # Individual SBDB searches are persisted separately through /api/object?refresh=1.
+        "profile_limit": 0,
+        "include_profiles": False,
+    }
+
+
+def _web_live_cooldown_remaining() -> int:
+    now = dt.datetime.now(dt.timezone.utc)
+    for row in recent_update_runs(limit=20):
+        if str(row.get("trigger_name") or "") != "web-live" or str(row.get("status") or "") != "success":
+            continue
+        finished = str(row.get("finished_at") or "").strip()
+        if not finished:
+            continue
+        try:
+            stamp = dt.datetime.fromisoformat(finished.replace("Z", "+00:00"))
+            if stamp.tzinfo is None:
+                stamp = stamp.replace(tzinfo=dt.timezone.utc)
+            age = max(0.0, (now - stamp.astimezone(dt.timezone.utc)).total_seconds())
+        except (TypeError, ValueError):
+            continue
+        return max(0, int(LIVE_REFRESH_COOLDOWN_SECONDS - age))
+    return 0
+
+
+def _cloud_live_refresh(body: bytes) -> ApiResponse:
+    if len(body or b"") > 32768:
+        return error_response(HTTPStatus.BAD_REQUEST, "Refresh request is too large", "Maximum request body is 32 KiB")
+    try:
+        payload = json.loads((body or b"{}").decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        return error_response(HTTPStatus.BAD_REQUEST, "Invalid refresh request", str(exc))
+    if not isinstance(payload, dict):
+        return error_response(HTTPStatus.BAD_REQUEST, "Invalid refresh request", "JSON body must be an object")
+
+    if not LIVE_REFRESH_LOCK.acquire(blocking=False):
+        return json_response({
+            "accepted": False,
+            "persisted": False,
+            "reason": "refresh_in_progress",
+            "message": "A persisted NASA/JPL refresh is already running.",
+            "counts": counts(),
+        }, status=HTTPStatus.CONFLICT)
+
+    try:
+        remaining = _web_live_cooldown_remaining()
+        if remaining > 0:
+            return json_response({
+                "accepted": False,
+                "persisted": True,
+                "reason": "cooldown",
+                "retry_after_seconds": remaining,
+                "message": "The archive was refreshed recently; the persisted copy is already current.",
+                "counts": counts(),
+                "recent_updates": recent_update_runs(limit=3),
+            })
+
+        config = _bounded_live_refresh_config(payload)
+        try:
+            result = run_update(config, trigger="web-live")
+        except Exception as exc:
+            return error_response(HTTPStatus.BAD_GATEWAY, "Persisted NASA/JPL refresh failed", str(exc))
+
+        if str(result.get("status") or "") != "success":
+            return json_response({
+                "accepted": True,
+                "persisted": False,
+                "reason": str(result.get("status") or "incomplete"),
+                "result": result,
+                "counts": counts(),
+            }, status=HTTPStatus.INTERNAL_SERVER_ERROR)
+
+        return json_response({
+            "accepted": True,
+            "persisted": True,
+            "reason": "updated",
+            "message": "NASA/JPL core datasets were refreshed and committed to SQLite.",
+            "result": result,
+            "counts": result.get("counts") or counts(),
+            "recent_updates": recent_update_runs(limit=3),
+            "state": cloud_update_snapshot(),
+        })
+    finally:
+        LIVE_REFRESH_LOCK.release()
+
+
+
 def handle_cloud_post(path: str, body: bytes = b"") -> ApiResponse:
+    if path == "/api/update/live":
+        return _cloud_live_refresh(body)
     if path == "/api/update/start":
         return json_response({
             "accepted": False,

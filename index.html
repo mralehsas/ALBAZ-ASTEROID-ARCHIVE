@@ -1752,7 +1752,7 @@ window.AA_LIVE_CACHE = window.AA_LIVE_CACHE || null;
     nasaDescription: 'تنزيل السجلات الرسمية وحفظها محليًا في SQLite مع سجل تدقيق كامل، من دون استبدال القيم المفقودة بتقديرات غير معلّمة.',
     engineIdle: 'المحرك جاهز', updateConfig: 'إعداد التحديث', archiveWindow: 'نافذة الأرشفة', futureDays: 'مدة الاقترابات القادمة — يوم',
     engineDistance: 'أقصى مسافة — LD', approachLimit: 'حد سجلات الاقتراب', fireballLimit: 'حد سجلات الكرات النارية',
-    profileLimit: 'الملفات العلمية ذات الأولوية', includeProfiles: 'تحديث ملفات SBDB العلمية للأجرام الأقرب', startNasaUpdate: 'بدء تحديث NASA/JPL', refreshLiveNasa: 'تحديث البيانات الحية NASA/JPL', refreshLiveNasa: 'تحديث البيانات الحية NASA/JPL', refreshLiveNasa: 'تحديث البيانات الحية NASA/JPL', refreshLiveNasa: 'تحديث البيانات الحية NASA/JPL',
+    profileLimit: 'الملفات العلمية ذات الأولوية', includeProfiles: 'تحديث ملفات SBDB العلمية للأجرام الأقرب', startNasaUpdate: 'بدء تحديث NASA/JPL', refreshLiveNasa: 'تحديث الأرشيف NASA/JPL — حفظ فعلي',
     cancelUpdate: 'إلغاء التحديث', updatePolicy: 'لا تُحذف آخر قاعدة سليمة عند فشل الإنترنت. تُستبدل المجموعة فقط بعد اكتمال تنزيلها والتحقق من JSON.',
     liveProgress: 'التقدم المباشر', waitingUpdate: 'بانتظار بدء التحديث', engineReadyMessage: 'قاعدة البيانات المحلية جاهزة للاستعمال.',
     dbApproaches: 'اقترابات محفوظة', dbFireballs: 'كرات نارية محفوظة', dbSentry: 'أجسام Sentry', dbProfiles: 'ملفات علمية',
@@ -1769,7 +1769,7 @@ window.AA_LIVE_CACHE = window.AA_LIVE_CACHE || null;
     nasaDescription: 'Download official records into SQLite with a complete audit trail, without replacing missing values with unlabelled estimates.',
     engineIdle: 'Engine ready', updateConfig: 'Update configuration', archiveWindow: 'Archive window', futureDays: 'Future approach window — days',
     engineDistance: 'Maximum distance — LD', approachLimit: 'Approach record limit', fireballLimit: 'Fireball record limit',
-    profileLimit: 'Priority scientific profiles', includeProfiles: 'Update SBDB profiles for the nearest objects', startNasaUpdate: 'Start NASA/JPL update', refreshLiveNasa: 'Refresh live NASA/JPL data', refreshLiveNasa: 'Refresh live NASA/JPL data', refreshLiveNasa: 'Refresh live NASA/JPL data', refreshLiveNasa: 'Refresh live NASA/JPL data',
+    profileLimit: 'Priority scientific profiles', includeProfiles: 'Update SBDB profiles for the nearest objects', startNasaUpdate: 'Start NASA/JPL update', refreshLiveNasa: 'Refresh NASA/JPL archive — persisted',
     cancelUpdate: 'Cancel update', updatePolicy: 'The last valid database is retained if the network fails. A dataset is replaced only after valid JSON is downloaded.',
     liveProgress: 'Live progress', waitingUpdate: 'Waiting to start', engineReadyMessage: 'The local database is ready for use.',
     dbApproaches: 'Stored approaches', dbFireballs: 'Stored fireballs', dbSentry: 'Sentry objects', dbProfiles: 'Scientific profiles',
@@ -2086,6 +2086,7 @@ window.AA_LIVE_CACHE = window.AA_LIVE_CACHE || null;
       object: '/api/object',
       updateStatus: '/api/update/status',
       updateHistory: '/api/update/history',
+      updateLive: '/api/update/live',
       updateStart: '/api/update/start',
       updateCancel: '/api/update/cancel',
       connectivity: '/api/connectivity/test',
@@ -4746,8 +4747,30 @@ window.AA_LIVE_CACHE = window.AA_LIVE_CACHE || null;
     if (!backendApiAvailable()) { toast(t('engineLocalOnly'), 'error'); return; }
     const consoleOnly = state.engineState?.status === 'console_only';
     if (consoleOnly && !isLocalServer()) {
-      await loadAllData();
-      renderEngineState(state.engineState || state.health?.update || { status:'console_only', running:false, percent:0, stage:'LIVE', logs:[] });
+      const startButton = $('#startNasaUpdateButton');
+      if (startButton) startButton.disabled = true;
+      setLoading(true);
+      setStatus(state.lang === 'ar' ? 'جارٍ تنزيل بيانات NASA/JPL وحفظها في SQLite…' : 'Downloading NASA/JPL data and committing it to SQLite…');
+      try {
+        const payload = await postJson(endpoint('updateLive'), engineConfig());
+        await loadAllData({ announce:false });
+        await refreshUpdateHistory();
+        const saved = payload.counts || payload.result?.counts || {};
+        if (payload.accepted === false && payload.reason === 'cooldown') {
+          toast(state.lang === 'ar'
+            ? `الأرشيف محدث حديثًا ومحفوظ في SQLite. أعد المحاولة بعد ${payload.retry_after_seconds || 0} ثانية.`
+            : `The archive was refreshed recently and is persisted in SQLite. Retry in ${payload.retry_after_seconds || 0} seconds.`);
+        } else {
+          toast(state.lang === 'ar'
+            ? `تم حفظ التحديث فعليًا في SQLite: ${saved.approaches || 0} اقتراب، ${saved.fireballs || 0} كرة نارية، ${saved.sentry || 0} Sentry.`
+            : `Persisted to SQLite: ${saved.approaches || 0} approaches, ${saved.fireballs || 0} fireballs, ${saved.sentry || 0} Sentry objects.`);
+        }
+      } catch (error) {
+        toast(`${t('updateFailed')}: ${error.message}`, 'error');
+      } finally {
+        setLoading(false);
+        renderEngineState(state.engineState || state.health?.update || { status:'console_only', running:false, percent:0, stage:'console', logs:[] });
+      }
       return;
     }
     try {

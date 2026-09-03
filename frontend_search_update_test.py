@@ -26,20 +26,28 @@ forbid(
     "Public search is still display-only and bypasses SQLite profile storage",
 )
 
-# In PythonAnywhere console_only mode, the large update control must perform
-# an actual live-data refresh rather than being permanently disabled.
-require("refreshLiveNasa:", "Live NASA/JPL refresh translation is missing")
+# In PythonAnywhere console_only mode, the large update control must persist
+# the bounded core NASA/JPL datasets in SQLite through the dedicated cloud route.
+require("refreshLiveNasa:", "NASA/JPL persisted refresh translation is missing")
 require(
     "if (consoleOnly && !isLocalServer()) {",
-    "Cloud update handler has no console_only live-refresh branch",
+    "Cloud update handler has no console_only persisted-refresh branch",
 )
 require(
-    "await loadAllData();",
-    "Cloud update handler does not execute the live dataset refresh",
+    "updateLive: '/api/update/live'",
+    "Frontend endpoint map does not expose the persisted cloud refresh route",
+)
+require(
+    "const payload = await postJson(endpoint('updateLive'), engineConfig());",
+    "Cloud update handler does not POST the persisted refresh route",
+)
+require(
+    "await loadAllData({ announce:false });",
+    "Cloud update handler does not reload the newly persisted archive",
 )
 require(
     "start.disabled = running || !backendApiAvailable();",
-    "Cloud live-refresh button remains disabled despite an available backend",
+    "Cloud persisted-refresh button remains disabled despite an available backend",
 )
 
-print("frontend live search/update behavior: PASS")
+print("frontend persisted search/update behavior: PASS")
