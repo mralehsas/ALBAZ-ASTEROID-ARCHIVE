@@ -5,6 +5,9 @@ ROOT = Path(__file__).resolve().parent
 CANONICAL = "https://mralehsas.github.io/ALBAZ-ASTEROID-ARCHIVE/"
 TITLE_AR = "أرشيف الكويكبات"
 TITLE_EN = "ALBAZ Asteroid Archive"
+INDEXNOW_KEY = "6ddad72b13399ce47f5107fe9d1f9aa2"
+INDEXNOW_KEY_FILE = ROOT / f"{INDEXNOW_KEY}.txt"
+INDEXNOW_WORKFLOW = ROOT / ".github" / "workflows" / "indexnow.yml"
 
 
 def require(condition, message):
@@ -39,7 +42,7 @@ def main():
     require(TITLE_AR in config_text and TITLE_EN in config_text, "web-config must expose the bilingual SEO title")
     require("description" in config_text.lower(), "web-config must expose an SEO description")
     require("application/ld+json" in config_text, "web-config must install Schema.org JSON-LD")
-    require("rel', 'canonical'" in config_text or 'rel", "canonical"' in config_text or "rel = 'canonical'" in config_text,
+    require("rel', 'canonical'" in config_text or 'rel\", \"canonical\"' in config_text or "rel = 'canonical'" in config_text,
             "web-config must install a canonical link")
     require("og:title" in config_text and "og:description" in config_text and "og:url" in config_text,
             "web-config must install Open Graph metadata")
@@ -48,6 +51,18 @@ def main():
     require(CANONICAL in readme_text, "README must prominently link to the canonical public application")
     require(TITLE_AR in readme_text and TITLE_EN in readme_text, "README must identify the project bilingually")
     require("NASA/JPL" in readme_text and "JPL Horizons" in readme_text, "README must identify the scientific data services")
+
+    # IndexNow must notify search engines about this exact canonical URL without changing it.
+    require(INDEXNOW_KEY_FILE.exists(), "IndexNow key file is missing")
+    require(INDEXNOW_WORKFLOW.exists(), "IndexNow workflow is missing")
+    require(INDEXNOW_KEY_FILE.read_text(encoding="utf-8").strip() == INDEXNOW_KEY,
+            "IndexNow key file must contain the exact verification key")
+    indexnow_text = INDEXNOW_WORKFLOW.read_text(encoding="utf-8")
+    require("api.indexnow.org/indexnow" in indexnow_text, "IndexNow workflow must call the official endpoint")
+    require('"host": "mralehsas.github.io"' in indexnow_text, "IndexNow host must stay mralehsas.github.io")
+    require(CANONICAL in indexnow_text, "IndexNow workflow must submit the exact canonical application URL")
+    require(f"{CANONICAL}{INDEXNOW_KEY}.txt" in indexnow_text,
+            "IndexNow workflow must publish the correct keyLocation under the existing project path")
 
     # Keep crawler-facing text descriptive rather than keyword-stuffed.
     description_match = re.search(r"seoDescription\s*=\s*['\"](.+?)['\"]", config_text)
