@@ -16,14 +16,17 @@ def main():
     robots = ROOT / "robots.txt"
     sitemap = ROOT / "sitemap.xml"
     config = ROOT / "web-config.js"
+    readme = ROOT / "README.md"
 
     require(robots.exists(), "robots.txt is missing")
     require(sitemap.exists(), "sitemap.xml is missing")
     require(config.exists(), "web-config.js is missing")
+    require(readme.exists(), "README.md is missing")
 
     robots_text = robots.read_text(encoding="utf-8")
     sitemap_text = sitemap.read_text(encoding="utf-8")
     config_text = config.read_text(encoding="utf-8")
+    readme_text = readme.read_text(encoding="utf-8")
 
     require("User-agent: *" in robots_text, "robots.txt must address all crawlers")
     require("Allow: /" in robots_text, "robots.txt must allow crawling")
@@ -42,8 +45,12 @@ def main():
             "web-config must install Open Graph metadata")
     require("twitter:card" in config_text, "web-config must install Twitter card metadata")
 
+    require(CANONICAL in readme_text, "README must prominently link to the canonical public application")
+    require(TITLE_AR in readme_text and TITLE_EN in readme_text, "README must identify the project bilingually")
+    require("NASA/JPL" in readme_text and "JPL Horizons" in readme_text, "README must identify the scientific data services")
+
     # Keep crawler-facing text descriptive rather than keyword-stuffed.
-    description_match = re.search(r"seoDescription\s*:\s*['\"](.+?)['\"]", config_text)
+    description_match = re.search(r"seoDescription\s*=\s*['\"](.+?)['\"]", config_text)
     if description_match:
         description = description_match.group(1)
         require(70 <= len(description) <= 220, "SEO description should be concise and descriptive")
