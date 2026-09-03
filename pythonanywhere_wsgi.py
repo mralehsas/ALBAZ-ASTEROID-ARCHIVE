@@ -10,6 +10,14 @@ from typing import Iterable
 # Must be set before importing modules that bind runtime paths at import time.
 os.environ.setdefault("ALBAZ_DATA_DIR", str(Path.home() / ".albaz-asteroid-data"))
 
+# PythonAnywhere stores SQLite on cloud-backed filesystem storage. Avoid WAL there
+# and serialize full/web refreshes across independent processes before api_core
+# imports update_engine.run_update.
+from cloud_sqlite import activate_cloud_sqlite, install_update_lock  # noqa: E402
+
+activate_cloud_sqlite()
+install_update_lock()
+
 from api_core import (  # noqa: E402
     ApiResponse,
     cloud_update_snapshot,
@@ -31,6 +39,8 @@ def _runtime_info() -> dict[str, object]:
         "deployment": "pythonanywhere",
         "data_dir": str(DB_PATH.parent),
         "external_data_dir": True,
+        "sqlite_journal_mode": "delete",
+        "shared_update_lock": True,
     }
 
 
