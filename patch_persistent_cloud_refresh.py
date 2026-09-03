@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import re
 
 
 def replace_once(text: str, old: str, new: str, label: str) -> str:
@@ -10,6 +11,15 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
     if new in text:
         return text
     raise SystemExit(f"{label}: patch target not found")
+
+
+def regex_once(text: str, pattern: str, replacement: str, label: str) -> str:
+    updated, count = re.subn(pattern, replacement, text, count=1)
+    if count == 1:
+        return updated
+    if replacement in text:
+        return text
+    raise SystemExit(f"{label}: regex target not found")
 
 
 api_path = Path("api_core.py")
@@ -153,16 +163,16 @@ index = replace_once(
     "updateHistory: '/api/update/history',\n      updateLive: '/api/update/live',\n      updateStart: '/api/update/start',",
     "frontend endpoint map",
 )
-index = replace_once(
+index = regex_once(
     index,
-    "refreshLiveNasa: 'تحديث البيانات الحية NASA/JPL'",
-    "refreshLiveNasa: 'تحديث الأرشيف NASA/JPL — حفظ فعلي'",
+    r"startNasaUpdate: 'بدء تحديث NASA/JPL'(?:, refreshLiveNasa: 'تحديث البيانات الحية NASA/JPL')+",
+    "startNasaUpdate: 'بدء تحديث NASA/JPL', refreshLiveNasa: 'تحديث الأرشيف NASA/JPL — حفظ فعلي'",
     "Arabic persisted label",
 )
-index = replace_once(
+index = regex_once(
     index,
-    "refreshLiveNasa: 'Refresh live NASA/JPL data'",
-    "refreshLiveNasa: 'Refresh NASA/JPL archive — persisted'",
+    r"startNasaUpdate: 'Start NASA/JPL update'(?:, refreshLiveNasa: 'Refresh live NASA/JPL data')+",
+    "startNasaUpdate: 'Start NASA/JPL update', refreshLiveNasa: 'Refresh NASA/JPL archive — persisted'",
     "English persisted label",
 )
 old_cloud = """    if (consoleOnly && !isLocalServer()) {
