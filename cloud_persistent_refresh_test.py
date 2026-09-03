@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import api_core
 
@@ -65,6 +66,15 @@ def test_cloud_live_refresh_is_persisted_and_bounded() -> None:
             api_core.run_update = original_run_update
 
 
+def test_cloud_refresh_implementation_is_unique() -> None:
+    text = Path("api_core.py").read_text(encoding="utf-8")
+    assert_true(text.count("def _bounded_live_refresh_config(") == 1, "Cloud refresh config helper is duplicated")
+    assert_true(text.count("def _web_live_cooldown_remaining(") == 1, "Cloud refresh cooldown helper is duplicated")
+    assert_true(text.count("def _cloud_live_refresh(") == 1, "Cloud refresh endpoint implementation is duplicated")
+    assert_true(text.count("LIVE_REFRESH_COOLDOWN_SECONDS: Final[int] = 300") == 1, "Cloud refresh cooldown constant is duplicated")
+    assert_true("run_update, run_update" not in text, "run_update import is duplicated")
+
+
 def test_heavy_cloud_update_remains_console_only() -> None:
     response = api_core.handle_cloud_post("/api/update/start", b"{}")
     payload = decode(response)
@@ -73,7 +83,7 @@ def test_heavy_cloud_update_remains_console_only() -> None:
 
 
 def test_frontend_uses_persisted_cloud_refresh_route() -> None:
-    text = open("index.html", "r", encoding="utf-8").read()
+    text = Path("index.html").read_text(encoding="utf-8")
     assert_true("updateLive: '/api/update/live'" in text, "Frontend endpoint map lacks /api/update/live")
     assert_true("postJson(endpoint('updateLive')" in text, "Cloud refresh button does not POST the persisted refresh endpoint")
 
@@ -81,6 +91,7 @@ def test_frontend_uses_persisted_cloud_refresh_route() -> None:
 def main() -> int:
     tests = [
         test_cloud_live_refresh_is_persisted_and_bounded,
+        test_cloud_refresh_implementation_is_unique,
         test_heavy_cloud_update_remains_console_only,
         test_frontend_uses_persisted_cloud_refresh_route,
     ]
